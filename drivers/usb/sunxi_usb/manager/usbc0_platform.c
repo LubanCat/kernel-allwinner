@@ -43,6 +43,7 @@ int usb_hw_scan_debug;
 static ssize_t device_chose(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
+	mutex_lock(&g_usb_cfg.lock);
 	/* stop usb scan */
 	thread_run_flag = 0;
 
@@ -55,6 +56,7 @@ static ssize_t device_chose(struct device *dev,
 
 	hw_insmod_usb_device();
 	usb_msg_center(&g_usb_cfg);
+	mutex_unlock(&g_usb_cfg.lock);
 
 	return sprintf(buf, "%s\n", "device_chose finished!");
 }
@@ -62,6 +64,7 @@ static ssize_t device_chose(struct device *dev,
 static ssize_t host_chose(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
+	mutex_lock(&g_usb_cfg.lock);
 	/* stop usb scan */
 	thread_run_flag = 0;
 
@@ -76,6 +79,7 @@ static ssize_t host_chose(struct device *dev,
 
 	hw_insmod_usb_host();
 	usb_msg_center(&g_usb_cfg);
+	mutex_unlock(&g_usb_cfg.lock);
 
 	return sprintf(buf, "%s\n", "host_chose finished!");
 }
@@ -83,6 +87,7 @@ static ssize_t host_chose(struct device *dev,
 static ssize_t null_chose(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
+	mutex_lock(&g_usb_cfg.lock);
 	/* stop usb scan */
 	thread_run_flag = 0;
 
@@ -92,6 +97,7 @@ static ssize_t null_chose(struct device *dev,
 	hw_rmmod_usb_host();
 	hw_rmmod_usb_device();
 	usb_msg_center(&g_usb_cfg);
+	mutex_unlock(&g_usb_cfg.lock);
 
 	return sprintf(buf, "%s\n", "null_chose finished!");
 }
@@ -203,6 +209,7 @@ __s32 create_node_file(struct platform_device *pdev)
 	int ret = 0;
 	int i = 0;
 
+	mutex_init(&g_usb_cfg.lock);
 	device_create_file(&pdev->dev, &dev_attr_hw_scan_debug);
 
 	for (i = 0; i < ARRAY_SIZE(chose_attrs); i++) {

@@ -487,6 +487,10 @@ static int sunxi_ohci_hcd_remove(struct platform_device *pdev)
 	}
 #endif
 
+	if (sunxi_ohci->wakeup_source_flag && sunxi_ohci->wakeup_suspend) {
+		dev_pm_clear_wake_irq(&pdev->dev);
+	}
+
 	if (sunxi_ohci->usbc_no == HCI0_USBC_NO)
 		unregister_pm_notifier(&sunxi_ohci_pm_nb);
 

@@ -78,6 +78,7 @@ int aicwf_sdio_pwr_stctl(struct  aic_sdio_dev *sdiodev, uint target);
 int aicwf_sdio_func_init(struct aic_sdio_dev *sdiodev);
 void aicwf_sdio_func_deinit(struct aic_sdio_dev *sdiodev);
 int aicwf_sdio_flow_ctrl(struct aic_sdio_dev *sdiodev);
+int aicwf_sdio_flow_ctrl_msg(struct aic_sdio_dev *sdiodev);
 int aicwf_sdio_recv_pkt(struct aic_sdio_dev *sdiodev, struct sk_buff *skbbuf, u32 size);
 int aicwf_sdio_send_pkt(struct aic_sdio_dev *sdiodev, u8 *buf, uint count);
 void *aicwf_sdio_bus_init(struct aic_sdio_dev *sdiodev);

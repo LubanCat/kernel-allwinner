@@ -1319,7 +1319,7 @@ static int sunxi_get_hci_irq_no(struct platform_device *pdev,
 static int hci_wakeup_source_init(struct platform_device *pdev,
 		struct sunxi_hci_hcd *sunxi_hci)
 {
-	if (sunxi_hci->wakeup_source_flag) {
+	if (sunxi_hci->wakeup_source_flag && sunxi_hci->wakeup_suspend) {
 		device_init_wakeup(&pdev->dev, true);
 		dev_pm_set_wake_irq(&pdev->dev, sunxi_hci->irq_no);
 	} else {

@@ -48,6 +48,7 @@
 #include "aicwf_usb.h"
 #endif
 #include "aic_bsp_export.h"
+#include "rwnx_wakelock.h"
 
 #define RW_DRV_DESCRIPTION  "RivieraWaves 11nac driver for Linux cfg80211"
 #define RW_DRV_COPYRIGHT    "Copyright(c) 2015-2017 RivieraWaves"
@@ -687,18 +688,48 @@ static void rwnx_del_csa(struct rwnx_vif *vif)
 	kfree(csa);
 	vif->ap.csa = NULL;
 }
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
 static void rwnx_csa_finish(struct work_struct *ws)
 {
 	struct rwnx_csa *csa = container_of(ws, struct rwnx_csa, work);
 	struct rwnx_vif *vif = csa->vif;
 	struct rwnx_hw *rwnx_hw = vif->rwnx_hw;
 	int error = csa->status;
+	u8 *buf, *pos;
 
-	if (!error)
+	RWNX_DBG(RWNX_FN_ENTRY_STR);
+
+	buf = kmalloc(csa->bcn.len, GFP_KERNEL);
+	if (!buf) {
+		printk ("%s buf fail\n", __func__);
+		return;
+	}
+	pos = buf;
+
+	memcpy(pos, csa->bcn.head, csa->bcn.head_len);
+	pos += csa->bcn.head_len;
+	*pos++ = WLAN_EID_TIM;
+	*pos++ = 4;
+	*pos++ = 0;
+	*pos++ = csa->bcn.dtim;
+	*pos++ = 0;
+	*pos++ = 0;
+	if (csa->bcn.tail) {
+		memcpy(pos, csa->bcn.tail, csa->bcn.tail_len);
+		pos += csa->bcn.tail_len;
+	}
+	if (csa->bcn.ies) {
+		memcpy(pos, csa->bcn.ies, csa->bcn.ies_len);
+	}
+
+	if (!error) {
+		error = rwnx_send_bcn(rwnx_hw, buf, vif->vif_index, csa->bcn.len);
+		if (error)
+			return;
 		error = rwnx_send_bcn_change(rwnx_hw, vif->vif_index, 0,
 									 csa->bcn.len, csa->bcn.head_len,
 									 csa->bcn.tim_len, NULL);
+	}
 
 	if (error) {
 		#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0))
@@ -724,6 +755,7 @@ static void rwnx_csa_finish(struct work_struct *ws)
 	}
 	rwnx_del_csa(vif);
 }
+#endif
 
 /**
  * rwnx_external_auth_enable - Enable external authentication on a vif
@@ -1601,7 +1633,7 @@ int handle_private_cmd(struct net_device *net, char *command, u32 cmd_len)
 			} else {
 				printk("wrong args\n");
 			}
-		} else if (strcasecmp(argv[0], "SETSUSPENDMODE") == 0) {
+		} else if (strcasecmp(argv[0], "SETSUSPENDMODE") == 0 && g_rwnx_plat->sdiodev->rwnx_hw->cpmode != AICBSP_CPMODE_TEST) {
 	#ifdef AICWF_SDIO_SUPPORT
 			setsusp_mode = command_strtoul(argv[1], NULL, 10);
 			rwnx_send_me_set_lp_level(g_rwnx_plat->sdiodev->rwnx_hw, setsusp_mode);
@@ -2345,7 +2377,6 @@ static int rwnx_cfg80211_change_iface(struct wiphy *wiphy,
 	if (type == NL80211_IFTYPE_P2P_CLIENT || type == NL80211_IFTYPE_P2P_GO)
 		p2p = true;
 
-	if (type == NL80211_IFTYPE_AP || type == NL80211_IFTYPE_P2P_GO) {
 	if (vif->up) {
 	/* Abort scan request on the vif */
 	if (vif->rwnx_hw->scan_request &&
@@ -2388,7 +2419,6 @@ static int rwnx_cfg80211_change_iface(struct wiphy *wiphy,
 		vif->vif_index = add_if_cfm.inst_nbr;
 		vif->rwnx_hw->vif_table[add_if_cfm.inst_nbr] = vif;
 		spin_unlock_bh(&vif->rwnx_hw->cb_lock);
-		}
 	}
 	return 0;
 }
@@ -2465,6 +2495,9 @@ static int rwnx_cfg80211_scan(struct wiphy *wiphy,
 
 	RWNX_DBG(RWNX_FN_ENTRY_STR);
 
+	if (rwnx_hw->cpmode == AICBSP_CPMODE_TEST)
+		return -EBUSY;
+
 	if (scanning) {
 		printk("is scanning, abort\n");
 		error =  rwnx_send_scanu_cancel_req(rwnx_hw, NULL);
@@ -2473,11 +2506,10 @@ static int rwnx_cfg80211_scan(struct wiphy *wiphy,
 		msleep(150);
 	}
 
+	rwnx_hw->scan_request = request;
 	error = rwnx_send_scanu_req(rwnx_hw, rwnx_vif, request);
 	if (error)
 		return error;
-
-	rwnx_hw->scan_request = request;
 
 	return 0;
 }
@@ -2703,7 +2735,7 @@ static int rwnx_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 		key_params.cipher = sme->crypto.cipher_group;
 		rwnx_cfg80211_add_key(wiphy, dev, sme->key_idx, false, NULL, &key_params);
 	}
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0) || defined(CONFIG_WPA3_FOR_OLD_KERNEL)
 	else if ((sme->auth_type == NL80211_AUTHTYPE_SAE) &&
 			 !(sme->flags & CONNECT_REQ_EXTERNAL_AUTH_SUPPORT)) {
 		netdev_err(dev, "Doesn't support SAE without external authentication\n");
@@ -2759,7 +2791,7 @@ static int rwnx_cfg80211_disconnect(struct wiphy *wiphy, struct net_device *dev,
 	return rwnx_send_sm_disconnect_req(rwnx_hw, rwnx_vif, reason_code);
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0) || defined(CONFIG_WPA3_FOR_OLD_KERNEL)
 /**
  * @external_auth: indicates result of offloaded authentication processing from
  *     user space
@@ -2965,6 +2997,7 @@ static int rwnx_cfg80211_del_station_compat(struct wiphy *wiphy,
 				macaddr = cur->mac_addr;
 				printk("deinit:macaddr:%x,%x,%x,%x,%x,%x\r\n", macaddr[0], macaddr[1], macaddr[2], \
 									   macaddr[3], macaddr[4], macaddr[5]);
+				spin_lock_bh(&rx_priv->stas_reord_lock);
 				list_for_each_entry_safe(reord_info, reord_tmp,
 					&rx_priv->stas_reord_list, list) {
 					printk("reord_mac:%x,%x,%x,%x,%x,%x\r\n", reord_info->mac_addr[0], reord_info->mac_addr[1], reord_info->mac_addr[2], \
@@ -2974,6 +3007,7 @@ static int rwnx_cfg80211_del_station_compat(struct wiphy *wiphy,
 						break;
 					}
 				}
+				spin_unlock_bh(&rx_priv->stas_reord_lock);
 			}
 #endif
 
@@ -2992,7 +3026,7 @@ static int rwnx_cfg80211_del_station_compat(struct wiphy *wiphy,
 #ifdef CONFIG_DEBUG_FS
 			rwnx_dbgfs_unregister_rc_stat(rwnx_hw, cur);
 #endif
-			found++;
+			found = true;
 			break;
 		}
 	}
@@ -3056,9 +3090,9 @@ void apm_staloss_work_process(struct work_struct *work)
 					}
 				}
 			}
-		    if (rwnx_vif->wdev.iftype == NL80211_IFTYPE_AP || rwnx_vif->wdev.iftype == NL80211_IFTYPE_P2P_GO) {
+		    /*if (rwnx_vif->wdev.iftype == NL80211_IFTYPE_AP || rwnx_vif->wdev.iftype == NL80211_IFTYPE_P2P_GO) {
 				cfg80211_del_sta(rwnx_vif->ndev, cur->mac_addr, GFP_KERNEL);
-			}
+			}*/
 
 #ifdef AICWF_RX_REORDER
 #ifdef AICWF_SDIO_SUPPORT
@@ -3072,6 +3106,7 @@ void apm_staloss_work_process(struct work_struct *work)
 				macaddr = cur->mac_addr;
 				printk("deinit:macaddr:%x,%x,%x,%x,%x,%x\r\n", macaddr[0], macaddr[1], macaddr[2], \
 									   macaddr[3], macaddr[4], macaddr[5]);
+				spin_lock_bh(&rx_priv->stas_reord_lock);
 				list_for_each_entry_safe(reord_info, reord_tmp,
 					&rx_priv->stas_reord_list, list) {
 					printk("reord_mac:%x,%x,%x,%x,%x,%x\r\n", reord_info->mac_addr[0], reord_info->mac_addr[1], reord_info->mac_addr[2], \
@@ -3081,6 +3116,7 @@ void apm_staloss_work_process(struct work_struct *work)
 						break;
 					}
 				}
+				spin_unlock_bh(&rx_priv->stas_reord_lock);
 			}
 #endif
 
@@ -3110,7 +3146,39 @@ void apm_staloss_work_process(struct work_struct *work)
 	rwnx_update_mesh_power_mode(rwnx_vif);
 }
 
+void apm_probe_sta_work_process(struct work_struct *work)
+{
+	struct apm_probe_sta *probe_sta = container_of(work, struct apm_probe_sta, apmprobestaWork);
+	struct rwnx_vif *rwnx_vif = container_of(probe_sta, struct rwnx_vif, sta_probe);
+	bool found = false;
+	struct rwnx_sta *cur, *tmp;
 
+	u8 *mac = rwnx_vif->sta_probe.sta_mac_addr;
+
+	RWNX_DBG(RWNX_FN_ENTRY_STR);
+
+	list_for_each_entry_safe(cur, tmp, &rwnx_vif->ap.sta_list, list) {
+		if (!memcmp(cur->mac_addr, mac, ETH_ALEN)) {
+			found = true;
+			break;
+		}
+	}
+
+	printk("sta %pM found = %d\n", mac, found);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
+	if (found)
+		cfg80211_probe_status(rwnx_vif->ndev, mac, (u64)rwnx_vif->sta_probe.probe_id, 1, 0, false, GFP_ATOMIC);
+	else
+		cfg80211_probe_status(rwnx_vif->ndev, mac, (u64)rwnx_vif->sta_probe.probe_id, 0, 0, false, GFP_ATOMIC);
+#else
+	if (found)
+		cfg80211_probe_status(rwnx_vif->ndev, mac, (u64)rwnx_vif->sta_probe.probe_id, 1, GFP_ATOMIC);
+	else
+		cfg80211_probe_status(rwnx_vif->ndev, mac, (u64)rwnx_vif->sta_probe.probe_id, 0, GFP_ATOMIC);
+
+#endif
+	rwnx_vif->sta_probe.probe_id++;
+}
 /**
  * @change_station: Modify a given station. Note that flags changes are not much
  *	validated in cfg80211, in particular the auth/assoc/authorized flags
@@ -3281,6 +3349,12 @@ static int rwnx_cfg80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 
 	RWNX_DBG(RWNX_FN_ENTRY_STR);
 
+	INIT_WORK(&rwnx_vif->sta_probe.apmprobestaWork, apm_probe_sta_work_process);
+	rwnx_vif->sta_probe.apmprobesta_wq = create_singlethread_workqueue("apmprobe_wq");
+	if (!rwnx_vif->sta_probe.apmprobesta_wq) {
+		txrx_err("insufficient memory to create apmprobe_wq.\n");
+		return -ENOBUFS;
+	}
 	if (rwnx_vif->wdev.iftype == NL80211_IFTYPE_P2P_GO)
 		rwnx_hw->is_p2p_connected = 1;
 	/* Forward the information to the LMAC */
@@ -3412,6 +3486,9 @@ static int rwnx_cfg80211_stop_ap(struct wiphy *wiphy, struct net_device *dev)
 	rwnx_del_bcn(&rwnx_vif->ap.bcn);
 	rwnx_del_csa(rwnx_vif);
 
+	flush_workqueue(rwnx_vif->sta_probe.apmprobesta_wq);
+	destroy_workqueue(rwnx_vif->sta_probe.apmprobesta_wq);
+
 	netif_tx_stop_all_queues(dev);
 	netif_carrier_off(dev);
 
@@ -3489,6 +3566,29 @@ static int rwnx_cfg80211_set_monitor_channel(struct wiphy *wiphy,
 int rwnx_cfg80211_probe_client(struct wiphy *wiphy, struct net_device *dev,
 			const u8 *peer, u64 *cookie)
 {
+	//struct rwnx_hw *rwnx_hw = wiphy_priv(wiphy);
+	struct rwnx_vif *vif = netdev_priv(dev);
+	struct rwnx_sta *sta = NULL;
+
+	RWNX_DBG(RWNX_FN_ENTRY_STR);
+
+	if ((RWNX_VIF_TYPE(vif) != NL80211_IFTYPE_AP) && (RWNX_VIF_TYPE(vif) != NL80211_IFTYPE_P2P_GO) &&
+		(RWNX_VIF_TYPE(vif) != NL80211_IFTYPE_AP_VLAN))
+		return -EINVAL;
+	list_for_each_entry(sta, &vif->ap.sta_list, list) {
+	if (sta->valid && ether_addr_equal(sta->mac_addr, peer))
+		break;
+	}
+
+	if (!sta)
+		return -ENOENT;
+
+
+	memcpy(vif->sta_probe.sta_mac_addr, peer, 6);
+	queue_work(vif->sta_probe.apmprobesta_wq, &vif->sta_probe.apmprobestaWork);
+
+	*cookie = vif->sta_probe.probe_id;
+
 	return 0;
 }
 
@@ -3639,8 +3739,9 @@ rwnx_cfg80211_remain_on_channel(struct wiphy *wiphy, struct wireless_dev *wdev,
 	RWNX_DBG(RWNX_FN_ENTRY_STR);
 
 	/* For debug purpose (use ftrace kernel option) */
+#ifdef CREATE_TRACE_POINTS
 	trace_roc(rwnx_vif->vif_index, chan->center_freq, duration);
-
+#endif
 	/* Check that no other RoC procedure has been launched */
 	if (rwnx_hw->roc_elem) {
 		msleep(2);
@@ -3731,13 +3832,15 @@ static int rwnx_cfg80211_cancel_remain_on_channel(struct wiphy *wiphy,
 												  u64 cookie)
 {
 	struct rwnx_hw *rwnx_hw = wiphy_priv(wiphy);
+#ifdef CREATE_TRACE_POINTS
 	struct rwnx_vif *rwnx_vif = container_of(wdev, struct rwnx_vif, wdev);//netdev_priv(wdev->netdev);
-
+#endif
 	RWNX_DBG(RWNX_FN_ENTRY_STR);
 
 	/* For debug purpose (use ftrace kernel option) */
+#ifdef CREATE_TRACE_POINTS
 	trace_cancel_roc(rwnx_vif->vif_index);
-
+#endif
 	/* Check if a RoC procedure is pending */
 	if (!rwnx_hw->roc_elem) {
 		return 0;
@@ -3885,11 +3988,11 @@ static int rwnx_cfg80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 	/* Get STA on which management frame has to be sent */
 	rwnx_sta = rwnx_retrieve_sta(rwnx_hw, rwnx_vif, mgmt->da,
 								 mgmt->frame_control, ap);
-
+#ifdef CREATE_TRACE_POINTS
 	trace_mgmt_tx((channel) ? channel->center_freq : 0,
 				  rwnx_vif->vif_index, (rwnx_sta) ? rwnx_sta->sta_idx : 0xFF,
 				  mgmt);
-
+#endif
 	if (ap || rwnx_sta)
 		goto send_frame;
 
@@ -4098,7 +4201,11 @@ int rwnx_cfg80211_channel_switch (struct wiphy *wiphy,
 		goto end;
 	} else {
 		INIT_WORK(&csa->work, rwnx_csa_finish);
-		rwnx_cfg80211_ch_switch_started_notify(dev, &csa->chandef, params->count);
+		rwnx_cfg80211_ch_switch_started_notify(dev, &csa->chandef, params->count
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
+				, params->block_tx
+#endif
+				);
 	}
 
 end:
@@ -4471,7 +4578,8 @@ static int rwnx_fill_station_info(struct rwnx_sta *sta, struct rwnx_vif *vif,
 	case FORMATMOD_HE_SU:
 	case FORMATMOD_HE_ER:
 		sinfo->rxrate.flags = RATE_INFO_FLAGS_VHT_MCS;
-			sinfo->rxrate.mcs = rx_vect1->he.mcs;
+		sinfo->rxrate.mcs = rx_vect1->he.mcs;
+		break;
 #endif
 	default:
 		return -EINVAL;
@@ -4527,7 +4635,7 @@ static int rwnx_cfg80211_get_station(struct wiphy *wiphy, struct net_device *dev
 	if (sta)
 		return rwnx_fill_station_info(sta, vif, sinfo);
 
-	return -EINVAL;
+	return -ENOENT;
 }
 
 
@@ -5031,7 +5139,7 @@ static struct cfg80211_ops rwnx_cfg80211_ops = {
 	.tdls_mgmt = rwnx_cfg80211_tdls_mgmt,
 	.tdls_oper = rwnx_cfg80211_tdls_oper,
 	.change_bss = rwnx_cfg80211_change_bss,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0) || defined(CONFIG_WPA3_FOR_OLD_KERNEL)
 	.external_auth = rwnx_cfg80211_external_auth,
 #endif
 };
@@ -5122,7 +5230,6 @@ static const struct wiphy_wowlan_support aic_wowlan_support = {
  *
  */
 extern int aicwf_vendor_init(struct wiphy *wiphy);
-extern txpwr_idx_conf_t nvram_txpwr_idx;
 
 int rwnx_cfg80211_init(struct rwnx_plat *rwnx_plat, void **platform_data)
 {
@@ -5158,6 +5265,7 @@ int rwnx_cfg80211_init(struct rwnx_plat *rwnx_plat, void **platform_data)
 	rwnx_hw->wiphy = wiphy;
 	rwnx_hw->plat = rwnx_plat;
 	rwnx_hw->dev = rwnx_platform_get_dev(rwnx_plat);
+	rwnx_hw->chipid = feature.chipinfo->chipid;
 #ifdef AICWF_SDIO_SUPPORT
 	rwnx_hw->sdiodev = rwnx_plat->sdiodev;
 	rwnx_plat->sdiodev->rwnx_hw = rwnx_hw;
@@ -5170,6 +5278,7 @@ int rwnx_cfg80211_init(struct rwnx_plat *rwnx_plat, void **platform_data)
 	rwnx_hw->mod_params = &rwnx_mod_params;
 	rwnx_hw->tcp_pacing_shift = 7;
 
+	aicwf_wakeup_lock_init(rwnx_hw);
 	rwnx_init_aic(rwnx_hw);
 	/* set device pointer for wiphy */
 	set_wiphy_dev(wiphy, rwnx_hw->dev);
@@ -5232,6 +5341,7 @@ int rwnx_cfg80211_init(struct rwnx_plat *rwnx_plat, void **platform_data)
 	wiphy->mgmt_stypes = rwnx_default_mgmt_stypes;
 
 	rwnx_hw->fwlog_en = feature.fwlog_en;
+	rwnx_hw->cpmode   = feature.cpmode;
 	ret = rwnx_send_set_stack_start_req(rwnx_hw, 1, feature.hwinfo < 0, feature.hwinfo, feature.fwlog_en, &set_start_cfm);
 	if (ret)
 		goto err_lmac_reqs;
@@ -5285,7 +5395,7 @@ int rwnx_cfg80211_init(struct rwnx_plat *rwnx_plat, void **platform_data)
 		#endif
 		0;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0) || defined(CONFIG_WPA3_FOR_OLD_KERNEL)
 	wiphy->features |= NL80211_FEATURE_SAE;
 #endif
 
@@ -5450,6 +5560,7 @@ err_platon:
 //err_config:
 	kmem_cache_destroy(rwnx_hw->sw_txhdr_cache);
 err_cache:
+	aicwf_wakeup_lock_deinit(rwnx_hw);
 	wiphy_free(wiphy);
 err_out:
 	return ret;
@@ -5495,6 +5606,7 @@ void rwnx_cfg80211_deinit(struct rwnx_hw *rwnx_hw)
 	rwnx_radar_detection_deinit(&rwnx_hw->radar);
 	rwnx_platform_off(rwnx_hw, NULL);
 	kmem_cache_destroy(rwnx_hw->sw_txhdr_cache);
+	aicwf_wakeup_lock_deinit(rwnx_hw);
 	wiphy_free(rwnx_hw->wiphy);
 }
 
@@ -5551,6 +5663,7 @@ static int __init rwnx_mod_init(void)
 #ifdef AICWF_USB_SUPPORT
 		aicwf_usb_exit();
 #endif /*AICWF_USB_SUPPORT */
+		aicbsp_set_subsys(AIC_WIFI, AIC_PWR_OFF);
 		return -ENODEV;
 	}
 

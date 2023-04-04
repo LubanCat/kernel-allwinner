@@ -129,19 +129,10 @@
 // c.f LMAC/src/tx/tx_swdesc.h
 /// Descriptor filled by the Host
 struct hostdesc {
-#ifdef CONFIG_RWNX_SPLIT_TX_BUF
-	/// Pointers to packet payloads
-	u32_l packet_addr[NX_TX_PAYLOAD_MAX];
-	/// Sizes of the MPDU/MSDU payloads
-	u16_l packet_len[NX_TX_PAYLOAD_MAX];
-	/// Number of payloads forming the MPDU
-	u8_l packet_cnt;
-#else
 	/// Pointer to packet payload
-	u32_l packet_addr;
 	/// Size of the payload
 	u16_l packet_len;
-#endif //(NX_AMSDU_TX)
+	u16_l flags_ext;
 
 #ifdef CONFIG_RWNX_FULLMAC
 	/// Address of the status descriptor in host memory (used for confirmation upload)
@@ -152,12 +143,6 @@ struct hostdesc {
 	struct mac_addr eth_src_addr;
 	/// Ethernet Type
 	u16_l ethertype;
-	/// Buffer containing the PN to be used for this packet
-	u16_l pn[4];
-	/// Sequence Number used for transmission of this MPDU
-	u16_l sn;
-	/// Timestamp of first transmission of this MPDU
-	u16_l timestamp;
 #else /* ! CONFIG_RWNX_FULLMAC */
 #ifdef CONFIG_RWNX_AGG_TX
 	///Sequence Number for AMPDU MPDUs - for quick check if it's allowed within window
@@ -166,6 +151,7 @@ struct hostdesc {
 	/// Padding between the buffer control structure and the MPDU in host memory
 	u8_l padding;
 #endif /* CONFIG_RWNX_FULLMAC */
+	u8_l ac;
 	/// Packet TID (0xFF if not a QoS frame)
 	u8_l tid;
 	/// Interface Id

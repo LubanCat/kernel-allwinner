@@ -16,7 +16,7 @@
 #include "rwnx_cmds.h"
 #include "rwnx_defs.h"
 #include "rwnx_strs.h"
-#define CREATE_TRACE_POINTS
+//#define CREATE_TRACE_POINTS
 #include "rwnx_events.h"
 #include "aicwf_txrxif.h"
 #ifdef AICWF_SDIO_SUPPORT
@@ -28,6 +28,37 @@
  *
  */
 extern int aicwf_sdio_writeb(struct aic_sdio_dev *sdiodev, uint regaddr, u8 val);
+
+static int rwnx_exception_event(struct rwnx_cmd_mgr *cmd_mgr)
+{
+#if defined(AICWF_SDIO_SUPPORT)
+	struct aic_sdio_dev *pdev = container_of(cmd_mgr, struct aic_sdio_dev, cmd_mgr);
+#elif defined(AICWF_USB_SUPPORT)
+	struct aic_usb_dev *pdev = container_of(cmd_mgr, struct aic_usb_dev, cmd_mgr);
+#else
+	struct aic_usb_dev *pdev = NULL;
+#endif
+
+	static bool need_send = true;
+
+	char *envp[] = {
+		"SYSTEM=WIFI",
+		"EVENT=EXCEPTION",
+		"SUBEVENT=FW_CRASH",
+		NULL};
+
+	if (!need_send)
+		return 0;
+
+	if (pdev) {
+		kobject_uevent_env(&pdev->dev->kobj, KOBJ_CHANGE, envp);
+		need_send = true;
+		printk(KERN_CRIT "%s send exception uevent to userspace", __func__);
+		return 0;
+	}
+
+	return -1;
+}
 
 static void cmd_dump(const struct rwnx_cmd *cmd)
 {
@@ -63,8 +94,9 @@ int cmd_mgr_queue_force_defer(struct rwnx_cmd_mgr *cmd_mgr, struct rwnx_cmd *cmd
 	bool defer_push = false;
 
 	RWNX_DBG(RWNX_FN_ENTRY_STR);
+#ifdef CREATE_TRACE_POINTS
 	trace_msg_send(cmd->id);
-
+#endif
 	spin_lock_bh(&cmd_mgr->lock);
 
 	if (cmd_mgr->state == RWNX_CMD_MGR_STATE_CRASHED) {
@@ -118,8 +150,9 @@ static int cmd_mgr_queue(struct rwnx_cmd_mgr *cmd_mgr, struct rwnx_cmd *cmd)
 	bool defer_push = false;
 
 	//RWNX_DBG(RWNX_FN_ENTRY_STR);
+#ifdef CREATE_TRACE_POINTS
 	trace_msg_send(cmd->id);
-
+#endif
 	spin_lock_bh(&cmd_mgr->lock);
 
 	if (cmd_mgr->state == RWNX_CMD_MGR_STATE_CRASHED) {
@@ -225,6 +258,7 @@ static int cmd_mgr_queue(struct rwnx_cmd_mgr *cmd_mgr, struct rwnx_cmd *cmd)
 				cmd_complete(cmd_mgr, cmd);
 			}
 			spin_unlock_bh(&cmd_mgr->lock);
+			rwnx_exception_event(cmd_mgr);
 		} else {
 			kfree(cmd);
 			if (!list_empty(&cmd_mgr->cmds))
@@ -341,6 +375,7 @@ void cmd_mgr_task_process(struct work_struct *work)
 					cmd_complete(cmd_mgr, next);
 				}
 				spin_unlock_bh(&cmd_mgr->lock);
+				rwnx_exception_event(cmd_mgr);
 			} else
 				kfree(next);
 		}
@@ -358,9 +393,9 @@ static int cmd_mgr_run_callback(struct rwnx_hw *rwnx_hw, struct rwnx_cmd *cmd,
 		return 0;
 	}
 	//RWNX_DBG(RWNX_FN_ENTRY_STR);
-	spin_lock_bh(&rwnx_hw->cb_lock);
+	//spin_lock_bh(&rwnx_hw->cb_lock);
 	res = cb(rwnx_hw, cmd, msg);
-	spin_unlock_bh(&rwnx_hw->cb_lock);
+	//spin_unlock_bh(&rwnx_hw->cb_lock);
 
 	return res;
 }
@@ -384,8 +419,9 @@ static int cmd_mgr_msgind(struct rwnx_cmd_mgr *cmd_mgr, struct rwnx_cmd_e2amsg *
 	bool found = false;
 
 	// RWNX_DBG(RWNX_FN_ENTRY_STR);
+#ifdef CREATE_TRACE_POINTS
 	trace_msg_recv(msg->id);
-
+#endif
 	//printk("cmd->id=%x\n", msg->id);
 	spin_lock_bh(&cmd_mgr->lock);
 	list_for_each_entry(cmd, &cmd_mgr->cmds, list) {

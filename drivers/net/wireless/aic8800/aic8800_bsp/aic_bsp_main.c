@@ -13,45 +13,21 @@
 #define DRV_AUTHOR            "AICSemi"
 #define DRV_VERS_MOD          "1.0"
 
+#if defined(AICWF_SDIO_SUPPORT)
+#define DRV_TYPE_NAME   "sdio"
+#elif defined(AICWF_USB_SUPPORT)
+#define DRV_TYPE_NAME   "usb"
+#else
+#define DRV_TYPE_NAME   "unknow"
+#endif
+
+#define DRV_RELEASE_DATE "20221108"
+#define DRV_PATCH_LEVEL  "001"
+#define DRV_RELEASE_TAG  "aic-bsp-" DRV_TYPE_NAME "-" DRV_RELEASE_DATE "-" DRV_PATCH_LEVEL
+
 static struct platform_device *aicbsp_pdev;
 
-const struct aicbsp_firmware *aicbsp_firmware_list = fw_u02;
-
-const struct aicbsp_firmware fw_u02[] = {
-	[AICBSP_CPMODE_WORK] = {
-		.desc          = "normal work mode(sdio u02)",
-		.bt_adid       = "fw_adid.bin",
-		.bt_patch      = "fw_patch.bin",
-		.bt_table      = "fw_patch_table.bin",
-		.wl_fw         = "fmacfw.bin"
-	},
-
-	[AICBSP_CPMODE_TEST] = {
-		.desc          = "rf test mode(sdio u02)",
-		.bt_adid       = "fw_adid.bin",
-		.bt_patch      = "fw_patch.bin",
-		.bt_table      = "fw_patch_table.bin",
-		.wl_fw         = "fmacfw_rf.bin"
-	},
-};
-
-const struct aicbsp_firmware fw_u03[] = {
-	[AICBSP_CPMODE_WORK] = {
-		.desc          = "normal work mode(sdio u03/u04)",
-		.bt_adid       = "fw_adid_u03.bin",
-		.bt_patch      = "fw_patch_u03.bin",
-		.bt_table      = "fw_patch_table_u03.bin",
-		.wl_fw         = "fmacfw.bin"
-	},
-
-	[AICBSP_CPMODE_TEST] = {
-		.desc          = "rf test mode(sdio u03/u04)",
-		.bt_adid       = "fw_adid_u03.bin",
-		.bt_patch      = "fw_patch_u03.bin",
-		.bt_table      = "fw_patch_table_u03.bin",
-		.wl_fw         = "fmacfw_rf.bin"
-	},
-};
+const struct aicbsp_firmware *aicbsp_firmware_list;
 
 struct aicbsp_info_t aicbsp_info = {
 	.hwinfo_r = AICBSP_HWINFO_DEFAULT,
@@ -79,6 +55,11 @@ static ssize_t cpmode_show(struct device *dev,
 {
 	ssize_t count = 0;
 	uint8_t i = 0;
+
+	if (aicbsp_firmware_list == NULL) {
+		count += sprintf(&buf[count], "Wi-Fi not opened since system power on\n");
+		return count;
+	}
 
 	count += sprintf(&buf[count], "Support mode value:\n");
 
@@ -109,7 +90,7 @@ static ssize_t cpmode_store(struct device *dev,
 	}
 
 	aicbsp_info.cpmode = val;
-	printk("%s, set mode to: %lu[%s] done\n", __func__, val, aicbsp_firmware_list[val].desc);
+	printk("%s, set mode to: %lu[%s] done\n", __func__, val, aicbsp_firmware_list ? aicbsp_firmware_list[val].desc : "unknow");
 
 	return count;
 }
@@ -119,11 +100,12 @@ static ssize_t hwinfo_show(struct device *dev,
 {
 	ssize_t count = 0;
 
-	count += sprintf(&buf[count], "chip hw rev: ");
-	if (aicbsp_info.hwinfo_r < 0)
-		count += sprintf(&buf[count], "-1(not avalible)\n");
+	if (aicbsp_info.chipinfo == NULL)
+		count += sprintf(&buf[count], "chip info not avalible)\n");
 	else
-		count += sprintf(&buf[count], "0x%02X\n", aicbsp_info.chip_rev);
+		count += sprintf(&buf[count], "chip name: %s, id: 0x%02X, rev: 0x%02X, subrev: 0x%02X\n",
+					aicbsp_info.chipinfo->name, aicbsp_info.chipinfo->chipid,
+					aicbsp_info.chipinfo->rev, aicbsp_info.chipinfo->subrev);
 
 	count += sprintf(&buf[count], "hwinfo read: ");
 	if (aicbsp_info.hwinfo_r < 0)
@@ -270,7 +252,9 @@ static int __init aicbsp_init(void)
 {
 	int ret;
 	printk("%s\n", __func__);
+	printk("%s, Driver Release Tag: %s\n", __func__, DRV_RELEASE_TAG);
 
+	aicbsp_resv_mem_init();
 	mutex_init(&aicbsp_power_lock);
 	ret = platform_driver_register(&aicbsp_driver);
 	if (ret) {
@@ -312,6 +296,7 @@ err1:
 	platform_driver_unregister(&aicbsp_driver);
 err0:
 	mutex_destroy(&aicbsp_power_lock);
+	aicbsp_resv_mem_deinit();
 	return ret;
 }
 
@@ -322,6 +307,7 @@ static void __exit aicbsp_exit(void)
 	platform_device_del(aicbsp_pdev);
 	platform_driver_unregister(&aicbsp_driver);
 	mutex_destroy(&aicbsp_power_lock);
+	aicbsp_resv_mem_deinit();
 	printk("%s\n", __func__);
 }
 

@@ -21,7 +21,8 @@
 
 int aicwf_bus_init(uint bus_hdrlen, struct device *dev)
 {
-	int ret = 0;
+	int ret = -ENOMEM;
+	int errnum = 0;
 	struct aicwf_bus *bus_if;
 
 	if (!dev) {
@@ -31,7 +32,6 @@ int aicwf_bus_init(uint bus_hdrlen, struct device *dev)
 	bus_if = dev_get_drvdata(dev);
 	bus_if->cmd_buf = kzalloc(CMD_BUF_MAX, GFP_KERNEL);
 	if (!bus_if->cmd_buf) {
-		ret = -ENOMEM;
 		txrx_err("proto_attach failed\n");
 		goto fail;
 	}
@@ -45,18 +45,20 @@ int aicwf_bus_init(uint bus_hdrlen, struct device *dev)
 #endif
 
 	if (IS_ERR(bus_if->bustx_thread)) {
+		errnum = PTR_ERR(bus_if->bustx_thread);
 		bus_if->bustx_thread  = NULL;
-		txrx_err("aicwf_bustx_thread run fail\n");
+		txrx_err("aicwf_bustx_thread run fail, errnum is %d\n", errnum);
 		goto fail;
 	}
 
 	if (IS_ERR(bus_if->busrx_thread)) {
+		errnum = PTR_ERR(bus_if->busrx_thread);
 		bus_if->busrx_thread  = NULL;
-		txrx_err("aicwf_bustx_thread run fail\n");
+		txrx_err("aicwf_busrx_thread run fail, errnum is %d\n", errnum);
 		goto fail;
 	}
 
-	return ret;
+	return 0;
 fail:
 	aicwf_bus_deinit(dev);
 
@@ -83,7 +85,7 @@ void aicwf_bus_deinit(struct device *dev)
 		bus_if->cmd_buf = NULL;
 	}
 
-	if (bus_if->bustx_thread) {
+	if (!IS_ERR_OR_NULL(bus_if->bustx_thread)) {
 		complete_all(&bus_if->bustx_trgg);
 		kthread_stop(bus_if->bustx_thread);
 		bus_if->bustx_thread = NULL;
@@ -284,7 +286,7 @@ static void aicwf_recvframe_queue_deinit(struct list_head *q)
 
 void aicwf_rx_deinit(struct aicwf_rx_priv *rx_priv)
 {
-	if (rx_priv->sdiodev->bus_if->busrx_thread) {
+	if (!IS_ERR_OR_NULL(rx_priv->sdiodev->bus_if->busrx_thread)) {
 		complete_all(&rx_priv->sdiodev->bus_if->busrx_trgg);
 		kthread_stop(rx_priv->sdiodev->bus_if->busrx_thread);
 		rx_priv->sdiodev->bus_if->busrx_thread = NULL;

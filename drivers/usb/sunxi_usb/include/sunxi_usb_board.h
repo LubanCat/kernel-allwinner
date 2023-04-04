@@ -135,6 +135,7 @@ typedef struct usb_port_info {
 typedef struct usb_cfg {
 	u32 usb_global_enable;
 	u32 usbc_num;
+	struct mutex lock;
 	struct platform_device *pdev;
 
 	struct usb_port_info port;

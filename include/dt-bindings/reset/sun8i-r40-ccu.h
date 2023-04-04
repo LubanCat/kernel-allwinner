@@ -113,7 +113,6 @@
 #define RST_BUS_I2C1		65
 #define RST_BUS_I2C2		66
 #define RST_BUS_I2C3		67
-#define RST_BUS_CAN		68
 #define RST_BUS_SCR		69
 #define RST_BUS_PS20		70
 #define RST_BUS_PS21		71

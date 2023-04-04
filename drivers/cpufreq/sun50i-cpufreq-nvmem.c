@@ -16,6 +16,8 @@
 #include <linux/slab.h>
 #include <linux/sunxi-sid.h>
 
+#define PVALUE_OFFSET   0x20
+#define ICPU_OFFSET     0x28
 #define MAX_NAME_LEN    3
 
 #define SUN50IW9_ICPU_MASK     GENMASK(9, 0)
@@ -96,7 +98,16 @@ static int sun50i_nvmem_get_data(char *cell_name, u32 *data)
 static void sun50iw9_nvmem_xlate(u32 *versions, char *name)
 {
 	int value = 0;
+	u32 pvalue = 0;
+	u32 icpu = 0;
 	unsigned int ver_bits = sunxi_get_soc_ver() & 0x7;
+
+	sunxi_get_module_param_from_sid(&pvalue, PVALUE_OFFSET, 4);
+	pvalue &= 0xff;
+	pvalue *= 32;
+
+	sunxi_get_module_param_from_sid(&icpu, ICPU_OFFSET, 4);
+	icpu &= 0x3ff;
 
 	switch (ver_data.nv_speed) {
 	case 0x2000:
@@ -120,7 +131,14 @@ static void sun50iw9_nvmem_xlate(u32 *versions, char *name)
 		value = 3;
 		break;
 	case 0x5c00:
-		value = 4;
+		if (ver_bits == 0)
+			value = 4;
+		else {
+			if ((icpu >= 38) && (icpu <= 45) && (pvalue >= 2656) && (pvalue <= 5024))
+				value = 5;
+			else
+				value = 6;
+		}
 		break;
 	case 0x5d00:
 	default:

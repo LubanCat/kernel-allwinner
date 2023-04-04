@@ -773,6 +773,11 @@ static int __isp_set_load_reg(struct v4l2_subdev *sd, struct isp_table_reg_map *
 	if (!isp->use_isp)
 		return 0;
 
+	if (reg->size > ISP_LOAD_DRAM_SIZE) {
+		vin_err("user ask for 0x%x data, it more than isp load_data 0x%x\n", reg->size, ISP_LOAD_DRAM_SIZE);
+		return -EINVAL;
+	}
+
 	isp->load_flag = 1;
 	return copy_from_user(&isp->load_shadow[0], reg->addr, reg->size);
 }
@@ -785,6 +790,11 @@ static int __isp_set_table1_map(struct v4l2_subdev *sd, struct isp_table_reg_map
 
 	if (!isp->use_isp)
 		return 0;
+
+	if (tbl->size > ISP_TABLE_MAPPING1_SIZE) {
+		vin_err("user ask for 0x%x data, it more than isp table1_data 0x%x\n", tbl->size, ISP_TABLE_MAPPING1_SIZE);
+		return -EINVAL;
+	}
 
 	ret = copy_from_user(&isp->load_shadow[0] + ISP_LOAD_REG_SIZE, tbl->addr, tbl->size);
 	if (ret < 0) {
@@ -802,6 +812,11 @@ static int __isp_set_table2_map(struct v4l2_subdev *sd, struct isp_table_reg_map
 
 	if (!isp->use_isp)
 		return 0;
+
+	if (tbl->size > ISP_TABLE_MAPPING2_SIZE) {
+		vin_err("user ask for 0x%x data, it more than isp table1_data 0x%x\n", tbl->size, ISP_TABLE_MAPPING2_SIZE);
+		return -EINVAL;
+	}
 
 	ret = copy_from_user(&isp->load_shadow[0] + ISP_LOAD_REG_SIZE + ISP_TABLE_MAPPING1_SIZE, tbl->addr, tbl->size);
 	if (ret < 0) {

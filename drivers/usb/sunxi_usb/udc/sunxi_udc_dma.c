@@ -116,8 +116,8 @@ int sunxi_udc_dma_chan_disable(dm_hdl_t dma_hdl)
 	USBC_Writel(reg_value, USBC_REG_DMA_CHAN_CFN(pchan->reg_base,
 					pchan->channel_num));
 
-	pchan->used = 0;
-	pchan->channel_num = 0;
+	// pchan->used = 0;
+	// pchan->channel_num = 0;
 
 	return 0;
 }
@@ -203,7 +203,7 @@ void sunxi_udc_dma_set_config(struct sunxi_udc_ep *ep,
 	else /* rx */
 		pchan->ep_num = ep_fifo_out[ep->num];
 
-	pchan->reg_base = ep->dev->sunxi_udc_io->usb_vbase,
+	pchan->reg_base = ep->dev->sunxi_udc_io->usb_vbase;
 
 	DmaConfig.dma_bst_len = packet_size;
 	DmaConfig.dma_dir = !is_tx;
@@ -433,12 +433,12 @@ void sunxi_udc_dma_set_config(struct sunxi_udc_ep *ep,
 	void __iomem	*fifo_addr = NULL;
 	unsigned int usbc_no = 0;
 	struct dma_slave_config slave_config;
-
+#ifdef SW_UDC_DMA_INNER
 	if (ep->dev->sunxi_udc_dma[ep->num].chan ==  NULL) {
 		DMSG_PANIC("udc_dma start error,DMA is NULL.\n");
 		return;
 	}
-
+#endif
 	memset(&slave_config, 0, sizeof(slave_config));
 	is_tx = is_tx_ep(ep);
 
@@ -476,9 +476,11 @@ void sunxi_udc_dma_set_config(struct sunxi_udc_ep *ep,
 		slave_config.src_maxburst = 1;
 		slave_config.dst_maxburst = 1;
 		printk("%s Please fix me\n", __func__);
+#ifdef SW_UDC_DMA_INNER
 		//slave_config.slave_id = sunxi_slave_id(DRQDST_SDRAM, usbc_no);
 		dmaengine_slave_config(ep->dev->sunxi_udc_dma[ep->num].chan,
 					&slave_config);
+#endif
 	} else { /* ep out, tx */
 		slave_config.direction = DMA_MEM_TO_DEV;
 		slave_config.src_addr = buff_addr;
@@ -488,9 +490,11 @@ void sunxi_udc_dma_set_config(struct sunxi_udc_ep *ep,
 		slave_config.src_maxburst = 1;
 		slave_config.dst_maxburst = 1;
 		printk("%s Please fix me\n", __func__);
+#ifdef SW_UDC_DMA_INNER
 		//slave_config.slave_id = sunxi_slave_id(usbc_no, //DRQSRC_SDRAM);
 		dmaengine_slave_config(ep->dev->sunxi_udc_dma[ep->num].chan,
 					&slave_config);
+#endif
 	}
 }
 
@@ -501,6 +505,7 @@ void sunxi_udc_dma_start(struct sunxi_udc_ep *ep,
 	__u32 is_tx = 0;
 
 	is_tx = is_tx_ep(ep);
+#ifdef SW_UDC_DMA_INNER
 	if (ep->dev->sunxi_udc_dma[ep->num].chan ==  NULL) {
 		DMSG_PANIC("udc_dma start error,DMA is NULL.\n");
 		return;
@@ -556,6 +561,7 @@ void sunxi_udc_dma_start(struct sunxi_udc_ep *ep,
 	dma_desc->callback_param = (void *)ep->dev;
 	dmaengine_submit(dma_desc);
 	dma_async_issue_pending(ep->dev->sunxi_udc_dma[ep->num].chan);
+#endif
 }
 
 void sunxi_udc_dma_stop(struct sunxi_udc_ep *ep)
@@ -563,13 +569,13 @@ void sunxi_udc_dma_stop(struct sunxi_udc_ep *ep)
 	int ret = 0;
 
 	DMSG_DBG_DMA("line:%d, %s\n", __LINE__, __func__);
-
+#ifdef SW_UDC_DMA_INNER
 	ret = dmaengine_terminate_all(ep->dev->sunxi_udc_dma[ep->num].chan);
 	if (ret != 0) {
 		DMSG_PANIC("ERR: sunxi_dma_ctl stop  failed\n");
 		return;
 	}
-
+#endif
 	if (sunxi_udc_dma_para.ep[ep->num])
 		sunxi_udc_dma_para.ep[ep->num] = NULL;
 }
@@ -592,7 +598,7 @@ __s32 sunxi_udc_dma_probe(struct sunxi_udc *dev)
 	memset(&sunxi_udc_dma_para, 0, sizeof(sunxi_udc_dma_parg_t));
 	sunxi_udc_dma_para.dev = dev;
 	DMSG_INFO("sunxi_udc_dma_probe version77..\n");
-
+#ifdef SW_UDC_DMA_INNER
 	/* Try to acquire a generic DMA engine slave channel */
 	for (i = 1; i <= (USBC_MAX_EP_NUM - 1); i++) {
 		dma_cap_zero(mask);
@@ -607,7 +613,7 @@ __s32 sunxi_udc_dma_probe(struct sunxi_udc *dev)
 			}
 		}
 	}
-
+#endif
 	return 0;
 }
 

@@ -149,52 +149,157 @@ static void disable_802_3az_ieee(struct phy_device *phydev)
 	phy_write(phydev, 0x18, 0x0000);
 }
 
-static void ephy_config_default(struct phy_device *phydev)
+static void sunxi_ephy_config_new_init(struct phy_device *phydev)
 {
-	phy_write(phydev, 0x1f, 0x0100);	/* Switch to Page 1 */
+	phy_write(phydev, 0x1f, 0x0100);	/* switch to Page 1 */
 	phy_write(phydev, 0x12, 0x4824);	/* Disable APS */
 
-	phy_write(phydev, 0x1f, 0x0200);	/* Switch to Page 2 */
+	phy_write(phydev, 0x1f, 0x0200);	/* switch to Page 2 */
 	phy_write(phydev, 0x18, 0x0000);	/* PHYAFE TRX optimization */
 
-	phy_write(phydev, 0x1f, 0x0600);	/* Switch to Page 6 */
-	phy_write(phydev, 0x14, 0x708b);	/* PHYAFE TX optimization */
-	phy_write(phydev, 0x13, 0xF000);	/* PHYAFE RX optimization */
-	phy_write(phydev, 0x15, 0x1530);
-
-	phy_write(phydev, 0x1f, 0x0800);	/* Switch to Page 6 */
-	phy_write(phydev, 0x18, 0x00bc);	/* PHYAFE TRX optimization */
-}
-
-static void __maybe_unused ephy_config_fixed(struct phy_device *phydev)
-{
-	phy_write(phydev, 0x1f, 0x0100);	/*switch to Page 1 */
-	phy_write(phydev, 0x12, 0x4824);	/*Disable APS */
-
-	phy_write(phydev, 0x1f, 0x0200);	/*switch to Page 2 */
-	phy_write(phydev, 0x18, 0x0000);	/*PHYAFE TRX optimization */
-
-	phy_write(phydev, 0x1f, 0x0600);	/*switch to Page 6 */
-	phy_write(phydev, 0x14, 0x7809);	/*PHYAFE TX optimization */
-	phy_write(phydev, 0x13, 0xf000);	/*PHYAFE RX optimization */
+	phy_write(phydev, 0x1f, 0x0600);	/* switch to Page 6 */
+	phy_write(phydev, 0x14, 0x7809);	/* PHYAFE TX optimization */
+	phy_write(phydev, 0x13, 0xf000);	/* PHYAFE RX optimization */
 	phy_write(phydev, 0x10, 0x5523);
 	phy_write(phydev, 0x15, 0x3533);
 
-	phy_write(phydev, 0x1f, 0x0800);	/*switch to Page 8 */
-	phy_write(phydev, 0x1d, 0x0844);	/*disable auto offset */
-	phy_write(phydev, 0x18, 0x00bc);	/*PHYAFE TRX optimization */
+	phy_write(phydev, 0x1f, 0x0800);	/* switch to Page 8 */
+	phy_write(phydev, 0x1d, 0x0844);	/* disable auto offset */
+	phy_write(phydev, 0x18, 0x00bc);	/* PHYAFE TRX optimization */
+
+	phy_write(phydev, 0x1f, 0x0000);	/* switch to Page 0 */
 }
 
-static void __maybe_unused ephy_config_cali(struct phy_device *phydev,
+static void sunxi_ephy_config_old_init(struct phy_device *phydev)
+{
+	phy_write(phydev, 0x1f, 0x0100);	/* switch to Page 1 */
+	phy_write(phydev, 0x12, 0x4824);	/* Disable APS */
+
+	phy_write(phydev, 0x1f, 0x0200);	/* switch to Page 2 */
+	phy_write(phydev, 0x18, 0x0000);	/* PHYAFE TRX optimization */
+
+	phy_write(phydev, 0x1f, 0x0600);	/* switch to Page 6 */
+	phy_write(phydev, 0x14, 0x780b);	/* PHYAFE TX optimization */
+	phy_write(phydev, 0x13, 0xf000);	/* PHYAFE RX optimization */
+	phy_write(phydev, 0x15, 0x1530);
+	phy_write(phydev, 0x1f, 0x0800);	/* switch to Page 8 */
+	phy_write(phydev, 0x18, 0x00bc);	/* PHYAFE TRX optimization */
+
+	phy_write(phydev, 0x1f, 0x0000);	/* switch to Page 0 */
+}
+
+static void ephy_config_cali_with_control_overflow(struct phy_device *phydev,
+			u16 ephy_cali, u16 cali_offset)
+{
+	int value, cali_value;
+	value = phy_read(phydev, 0x06);
+	value &= ~(0x0F << 12);
+
+	cali_value = ephy_cali & 0x0F;
+
+	if (cali_value > 7)
+		value |= (0x0F & (cali_offset + cali_value)) << 12;
+	else {
+		if ((cali_value + cali_offset) > 7)
+			value |= (0x0F & (0x07)) << 12;
+		else
+			value |= (0x0F & (cali_offset + cali_value)) << 12;
+	}
+
+	phy_write(phydev, 0x06, value);
+
+	return;
+}
+
+static void ephy_default_config_cali_with_no_compensate(struct phy_device *phydev,
 					    u16 ephy_cali)
 {
 	int value;
 	value = phy_read(phydev, 0x06);
 	value &= ~(0x0F << 12);
-	value |= (0x0F & (0x03 + ephy_cali)) << 12;
+	value |= (0x0F & (ephy_cali)) << 12;
+
 	phy_write(phydev, 0x06, value);
 
 	return;
+}
+
+static char chip_batch_char_map[] = {
+	'0', '1', '2', '3',
+	'4', '5', '6', '7',
+	'8', '9', 'A', 'B',
+	'C', 'D', 'E', 'F',
+	'G', 'H', 'I', 'J',
+	'K', 'L', 'M', 'N',
+	'O', 'P', 'Q', 'R',
+	'S', 'T', 'U', 'V',
+	'W', 'X', 'Y', 'Z',
+};
+
+static u16 h616_mark_id = 0x5000, h313_mark_id = 0x5c00, ik316_mark_id = 0x5d00;
+
+static u16 mark_id_arr[] = {0x5000, 0x5c00, 0x5d00};
+
+static char *h616_batch_str_arr[] = {
+	"K7RJ7", "K8JC2", "K8KJY",  /* H616v25 */
+	NULL
+};
+
+static char *h313_batch_str_arr[] = {
+	"K7YJN", NULL /* H313v25 */
+};
+
+static char *ik316_batch_str_arr[] = {
+	"K8A6F", "K8C22", "K8J6H",  /* IK316v25 */
+	"K8J6G", "K8JP9", "K8JP8",
+	"K8K2G", "K8KPF", "K8L6T",
+	"K8KTY", "K8LJ3", "K8M13",
+	"K8T9G", "K8W50", "K8Y42",
+	"K9FS7", "K9FGT", "K9GHM",
+	NULL
+};
+
+static bool is_chip_batch_str_in_arr(char *chip_batch_str, char **chip_batch_str_arr)
+{
+	int i;
+
+	for (i = 0; chip_batch_str_arr[i]; i++) {
+		if (!strcmp(chip_batch_str, chip_batch_str_arr[i]))
+			return true;
+	}
+
+	return false;
+}
+
+static bool is_mark_id_in_arr(u16 mark_id)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(mark_id_arr); i++) {
+		if (mark_id == mark_id_arr[i])
+			return true;
+	}
+
+	return false;
+}
+
+static void ephy_cali_common(u16 ephy_cali, char *chip_batch_str, char **chip_batch_str_arr, struct phy_device *phydev)
+{
+	if (is_chip_batch_str_in_arr(chip_batch_str, chip_batch_str_arr)) {
+		if (ephy_cali & BIT(9)) {
+			sunxi_ephy_config_new_init(phydev);
+			ephy_config_cali_with_control_overflow(ac300_ephy.ac300, ephy_cali, 1);
+		} else {
+			sunxi_ephy_config_old_init(phydev);
+			ephy_config_cali_with_control_overflow(ac300_ephy.ac300, ephy_cali, 3);
+		}
+	} else {
+		if (ephy_cali & BIT(9))
+			sunxi_ephy_config_new_init(phydev);
+		else
+			sunxi_ephy_config_old_init(phydev);
+		ephy_config_cali_with_control_overflow(ac300_ephy.ac300, ephy_cali, 1);
+	}
 }
 
 static int ephy_config_init(struct phy_device *phydev)
@@ -202,32 +307,69 @@ static int ephy_config_init(struct phy_device *phydev)
 	int value;
 #if defined(CONFIG_ARCH_SUN50IW9)
 	if (ephy_type == EPHY_AC300) {
-		int ret;
-		u16 ephy_cali = 0;
+		int ret, i;
+		u16 ephy_cali = 0, mark_id;
+		u32 chip_id[4];
+		u16 chip_batch_num[5];
+		char chip_batch_str[6];
+
 		ret = ephy_read_sid(&ephy_cali);
 		if (ret) {
 			pr_err("ephy cali efuse read fail!\n");
 			return -1;
 		}
-		ephy_config_cali(ac300_ephy.ac300, ephy_cali);
-		/*
-		 * BIT9: the flag of calibration value
-		 * 0: Normal
-		 * 1: Low level of calibration value
-		 */
-		if (ephy_cali & BIT(9)) {
-			pr_debug("ac300:ephy cali efuse read: fixed!\n");
-			ephy_config_fixed(phydev);
+
+		sunxi_get_soc_chipid((u8 *)chip_id);
+		mark_id = chip_id[0] & 0xffff;
+
+		/* chip_id 0x8:bit[1:0] | 0x4:bit[31:28] */
+		chip_batch_num[4] = ((chip_id[1] >> 28) & 0xf) | ((chip_id[2] & 0x3) << 4);
+		/* chip_id 0x8:bit[7:2] */
+		chip_batch_num[3] = (chip_id[2] >> 2) & 0x3f;
+		/* chip_id 0x8:bit[13:8] */
+		chip_batch_num[2] = (chip_id[2] >> 8) & 0x3f;
+		/* chip_id 0x8:bit[19:14] */
+		chip_batch_num[1] = (chip_id[2] >> 14) & 0x3f;
+		/* chip_id 0x8:bit[25:20] */
+		chip_batch_num[0] = (chip_id[2] >> 20) & 0x3f;
+		/* chip_id 0x8:bit[31:26] is not used yet */
+
+		for (i = 0; i < (ARRAY_SIZE(chip_batch_str) - 1); i++)
+			chip_batch_str[i] = chip_batch_char_map[chip_batch_num[i]];
+
+		chip_batch_str[5] = '\0';
+
+		if (!(ephy_cali & BIT(10))) {
+			if (!is_mark_id_in_arr(mark_id))  {  /* H618, IK316-H */
+				if (ephy_cali & BIT(9))
+					sunxi_ephy_config_new_init(phydev);
+				else
+					sunxi_ephy_config_old_init(phydev);
+				ephy_config_cali_with_control_overflow(ac300_ephy.ac300, ephy_cali, 1);
+			} else {
+				if (mark_id == h616_mark_id)
+					ephy_cali_common(ephy_cali, chip_batch_str, h616_batch_str_arr, phydev);
+
+				if (mark_id == h313_mark_id)
+					ephy_cali_common(ephy_cali, chip_batch_str, h313_batch_str_arr, phydev);
+
+				if (mark_id == ik316_mark_id)
+					ephy_cali_common(ephy_cali, chip_batch_str, ik316_batch_str_arr, phydev);
+			}
 		} else {
-			pr_debug("ac300:ephy cali efuse read: default!\n");
-			ephy_config_default(phydev);
+			if (ephy_cali & BIT(9))
+				sunxi_ephy_config_new_init(phydev);
+			else
+				sunxi_ephy_config_old_init(phydev);
+			ephy_default_config_cali_with_no_compensate(ac300_ephy.ac300, ephy_cali);
 		}
 	} else {
 		pr_debug("ac200:ephy cali efuse read: default!\n");
-		ephy_config_default(phydev);
+		sunxi_ephy_config_old_init(phydev);
 	}
+
 #else
-	ephy_config_default(phydev);
+	sunxi_ephy_config_old_init(phydev);
 #endif
 
 #if 0
@@ -257,7 +399,7 @@ static int ephy_config_init(struct phy_device *phydev)
 			value |= (1 << 11);
 		else
 			value &= (~(1 << 11));
-		phy_write(ac300_ephy.ac300, 0x06, value);
+		phy_write(ac300_ephy.ac300, 0x06, value | (1 << 1)); /*LED_POL 1:Low active*/
 	}
 
 #if defined(CONFIG_ARCH_SUN50IW6)
@@ -313,7 +455,12 @@ static void ac300_ephy_enable(struct ephy_res *priv)
 	/* clk gating */
 	phy_write(priv->ac300, 0x00, 0x1fb7);
 
+#if defined(CONFIG_ARCH_SUN50IW9)
+	/* disable link led to avoid conflict with twi2 */
+	phy_write(priv->ac300, 0x05, 0xa819);
+#else
 	phy_write(priv->ac300, 0x05, 0xa81f);
+#endif
 	phy_write(priv->ac300, 0x06, 0);
 
 	msleep(1000);  /* FIXME: fix some board compatible issues. */
@@ -370,6 +517,7 @@ static void acx00_ephy_enble(struct ephy_res *priv)
 	unsigned char i = 0;
 #if defined(CONFIG_ARCH_SUN50IW6) || defined(CONFIG_ARCH_SUN50IW9)
 	u16 ephy_cali = 0;
+	int cali_value;
 #endif
 
 	if (!acx00_enable()) {
@@ -403,7 +551,16 @@ static void acx00_ephy_enble(struct ephy_res *priv)
 
 #if defined(CONFIG_ARCH_SUN50IW6) || defined(CONFIG_ARCH_SUN50IW9)
 	ephy_read_sid(&ephy_cali);
-	value |= (0x0F & (0x03 + ephy_cali)) << 12;
+	cali_value = ephy_cali & 0x0F;
+
+	if (cali_value > 7)
+		value |= (0x0F & (0x03 + ephy_cali)) << 12;
+	else {
+		if ((cali_value + 0x03) > 7)
+			value |= (0x0F & (0x07)) << 12;
+		else
+			value |= (0x0F & (0x03 + cali_value)) << 12;
+	}
 #else
 	value |= (0x0F & (0x03 + acx00_reg_read(priv->acx, EPHY_SID))) << 12;
 #endif

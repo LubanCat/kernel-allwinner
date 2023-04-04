@@ -10,7 +10,7 @@
 #include "u_f.h"
 #include "u_os_desc.h"
 
-#ifdef CONFIG_USB_CONFIGFS_UEVENT
+#if IS_ENABLED(CONFIG_USB_CONFIGFS_UEVENT)
 #include <linux/platform_device.h>
 #include <linux/kdev_t.h>
 #include <linux/usb/ch9.h>
@@ -89,7 +89,7 @@ struct gadget_info {
 	char qw_sign[OS_STRING_QW_SIGN_LEN];
 	spinlock_t spinlock;
 	bool unbind;
-#ifdef CONFIG_USB_CONFIGFS_UEVENT
+#if IS_ENABLED(CONFIG_USB_CONFIGFS_UEVENT)
 	bool connected;
 	bool sw_connected;
 	struct work_struct work;
@@ -1455,7 +1455,7 @@ err_comp_cleanup:
 	return ret;
 }
 
-#ifdef CONFIG_USB_CONFIGFS_UEVENT
+#if IS_ENABLED(CONFIG_USB_CONFIGFS_UEVENT)
 static void android_work(struct work_struct *data)
 {
 	struct gadget_info *gi = container_of(data, struct gadget_info, work);
@@ -1531,7 +1531,7 @@ static void configfs_composite_unbind(struct usb_gadget *gadget)
 	spin_unlock_irqrestore(&gi->spinlock, flags);
 }
 
-#ifdef CONFIG_USB_CONFIGFS_UEVENT
+#if IS_ENABLED(CONFIG_USB_CONFIGFS_UEVENT)
 static int android_setup(struct usb_gadget *gadget,
 			const struct usb_ctrlrequest *c)
 {
@@ -1628,7 +1628,7 @@ static void configfs_composite_disconnect(struct usb_gadget *gadget)
 		return;
 	}
 
-#ifdef CONFIG_USB_CONFIGFS_UEVENT
+#if IS_ENABLED(CONFIG_USB_CONFIGFS_UEVENT)
 	gi->connected = 0;
 	schedule_work(&gi->work);
 #endif
@@ -1684,7 +1684,7 @@ static const struct usb_gadget_driver configfs_driver_template = {
 	.bind           = configfs_composite_bind,
 	.unbind         = configfs_composite_unbind,
 
-#ifdef CONFIG_USB_CONFIGFS_UEVENT
+#if IS_ENABLED(CONFIG_USB_CONFIGFS_UEVENT)
 	.setup          = android_setup,
 #else
 	.setup          = configfs_composite_setup,
@@ -1702,7 +1702,7 @@ static const struct usb_gadget_driver configfs_driver_template = {
 	.match_existing_only = 1,
 };
 
-#ifdef CONFIG_USB_CONFIGFS_UEVENT
+#if IS_ENABLED(CONFIG_USB_CONFIGFS_UEVENT)
 static ssize_t state_show(struct device *pdev, struct device_attribute *attr,
 			char *buf)
 {
@@ -1896,7 +1896,7 @@ static int __init gadget_cfs_init(void)
 
 	ret = configfs_register_subsystem(&gadget_subsys);
 
-#ifdef CONFIG_USB_CONFIGFS_UEVENT
+#if IS_ENABLED(CONFIG_USB_CONFIGFS_UEVENT)
 	android_class = class_create(THIS_MODULE, "android_usb");
 	if (IS_ERR(android_class))
 		return PTR_ERR(android_class);
@@ -1909,7 +1909,7 @@ module_init(gadget_cfs_init);
 static void __exit gadget_cfs_exit(void)
 {
 	configfs_unregister_subsystem(&gadget_subsys);
-#ifdef CONFIG_USB_CONFIGFS_UEVENT
+#if IS_ENABLED(CONFIG_USB_CONFIGFS_UEVENT)
 	if (!IS_ERR(android_class))
 		class_destroy(android_class);
 #endif

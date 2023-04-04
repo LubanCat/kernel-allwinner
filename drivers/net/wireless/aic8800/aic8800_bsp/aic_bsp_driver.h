@@ -201,9 +201,17 @@ enum dbg_msg_tag {
 	DBG_MAX,
 };
 
+enum mm_msg_tag {
+	MM_SET_RF_CONFIG_REQ = 103,
+	MM_SET_RF_CONFIG_CFM,
+	MM_MAX
+};
+
 enum {
 	HOST_START_APP_AUTO = 1,
-	HOST_START_APP_CUSTOM
+	HOST_START_APP_CUSTOM,
+	HOST_START_APP_FNCALL = 4,
+	HOST_START_APP_DUMMY  = 5,
 };
 
 struct dbg_mem_block_write_req {
@@ -272,6 +280,14 @@ struct dbg_binding_req {
 	u8 driver_data[16];
 };
 
+struct mm_set_rf_config_req {
+	u8 table_sel;
+	u8 table_ofst;
+	u8 table_num;
+	u8 deft_page;
+	u32 data[64];
+};
+
 int rwnx_send_dbg_mem_read_req(struct aic_sdio_dev *sdiodev, u32 mem_addr,
 							   struct dbg_mem_read_cfm *cfm);
 int rwnx_send_dbg_mem_block_write_req(struct aic_sdio_dev *sdiodev, u32 mem_addr,
@@ -283,19 +299,18 @@ int rwnx_send_dbg_start_app_req(struct aic_sdio_dev *sdiodev, u32 boot_addr, u32
 
 int rwnx_send_dbg_binding_req(struct aic_sdio_dev *sdiodev, u8 *dout, u8 *binding_status);
 void rwnx_rx_handle_msg(struct aic_sdio_dev *sdiodev, struct ipc_e2a_msg *msg);
+int rwnx_send_rf_config_req(struct aic_sdio_dev *sdiodev, u8 ofst, u8 sel, u8 *tbl, u16 len);
 
 int aicbsp_platform_init(struct aic_sdio_dev *sdiodev);
 void aicbsp_platform_deinit(struct aic_sdio_dev *sdiodev);
 int aicbsp_driver_fw_init(struct aic_sdio_dev *sdiodev);
-
-#define RAM_FMAC_FW_ADDR            0x00120000
-#define FW_RAM_ADID_BASE_ADDR       0x00161928
-#define FW_RAM_ADID_BASE_ADDR_U03   0x00161928
-#define FW_RAM_PATCH_BASE_ADDR      0x00100000
+int aicbsp_resv_mem_init(void);
+int aicbsp_resv_mem_deinit(void);
 
 #define AICBT_PT_TAG                "AICBT_PT_TAG"
 
 enum aicbt_patch_table_type {
+	AICBT_PT_INF  = 0x0,
 	AICBT_PT_TRAP = 0x1,
 	AICBT_PT_B4,
 	AICBT_PT_BTMODE,
@@ -339,17 +354,15 @@ enum aicbt_uart_flowctrl_type {
 	AICBT_UART_FLOWCTRL_ENABLE,           // uart with flow ctrl
 };
 
-enum aicbsp_cpmode_type {
-	AICBSP_CPMODE_WORK,
-	AICBSP_CPMODE_TEST,
-	AICBSP_CPMODE_MAX,
-};
-
 enum chip_rev {
 	CHIP_REV_U02 = 3,
 	CHIP_REV_U03 = 7,
 	CHIP_REV_U04 = 7,
 };
+
+///aic bt tx pwr lvl :lsb->msb: first byte, min pwr lvl; second byte, max pwr lvl;
+///pwr lvl:20(min), 30 , 40 , 50 , 60(max)
+#define AICBT_TXPWR_LVL             0x00006020
 
 #define AICBSP_HWINFO_DEFAULT       (-1)
 #define AICBSP_CPMODE_DEFAULT       AICBSP_CPMODE_WORK
@@ -358,6 +371,8 @@ enum chip_rev {
 #define AICBT_BTPORT_DEFAULT        AICBT_BTPORT_UART
 #define AICBT_UART_BAUD_DEFAULT     AICBT_UART_BAUD_1_5M
 #define AICBT_UART_FC_DEFAULT       AICBT_UART_FLOWCTRL_ENABLE
+#define AICBT_LPM_ENABLE_DEFAULT    1
+#define AICBT_TXPWR_LVL_DEFAULT     AICBT_TXPWR_LVL
 
 #define FEATURE_SDIO_CLOCK          70000000 // 0: default, other: target clock rate
 #define FEATURE_SDIO_PHASE          2        // 0: default, 2: 180°
@@ -375,6 +390,10 @@ struct aicbt_info_t {
 	uint32_t btport;
 	uint32_t uart_baud;
 	uint32_t uart_flowctrl;
+	uint32_t lpm_enable;
+	uint32_t txpwr_lvl;
+	uint32_t addr_adid;
+	uint32_t addr_patch;
 };
 
 struct aicbsp_firmware {
@@ -383,20 +402,32 @@ struct aicbsp_firmware {
 	const char *bt_patch;
 	const char *bt_table;
 	const char *wl_fw;
+	const char *wl_table;
 };
 
 struct aicbsp_info_t {
 	int hwinfo;
 	int hwinfo_r;
 	uint32_t cpmode;
-	uint32_t chip_rev;
 	bool fwlog_en;
+	struct device_match_entry *chipinfo;
 };
+
+int aicbsp_8800d_fw_init(struct aic_sdio_dev *sdiodev);
+int aicbsp_8800dc_fw_init(struct aic_sdio_dev *sdiodev);
+
+int wcn_bind_verify_calculate_verify_data(uint8_t *din, uint8_t *dout);
+int rwnx_plat_bin_fw_upload_android(struct aic_sdio_dev *sdiodev, u32 fw_addr, const char *filename);
+int aicbt_patch_table_free(struct aicbt_patch_table **head);
+struct aicbt_patch_table *aicbt_patch_table_alloc(const char *filename);
+int aicbt_patch_info_unpack(struct aicbt_patch_table *head, struct aicbt_info_t *aicbt_info);
+int aicbt_patch_table_load(struct aic_sdio_dev *sdiodev, struct aicbt_info_t *btcfg, struct aicbt_patch_table *head);
+
+extern u8 binding_enc_data[16];
+extern bool need_binding_verify;
 
 extern struct aicbsp_info_t aicbsp_info;
 extern struct mutex aicbsp_power_lock;
 extern const struct aicbsp_firmware *aicbsp_firmware_list;
-extern const struct aicbsp_firmware fw_u02[];
-extern const struct aicbsp_firmware fw_u03[];
 
 #endif

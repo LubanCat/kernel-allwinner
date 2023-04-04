@@ -14,6 +14,7 @@
 #include "rwnx_defs.h"
 #include "usb_host.h"
 #include "rwnx_platform.h"
+#include "rwnx_wakelock.h"
 
 void aicwf_usb_tx_flowctrl(struct rwnx_hw *rwnx_hw, bool state)
 {
@@ -153,6 +154,7 @@ static void aicwf_usb_rx_complete(struct urb *urb)
 			spin_unlock_irqrestore(&rx_priv->rxqlock, flags);
 			usb_err("rx_priv->rxq is over flow!!!\n");
 			aicwf_dev_skb_free(skb);
+			aicwf_usb_rx_buf_put(usb_dev, usb_buf);
 			return;
 		}
 		spin_unlock_irqrestore(&rx_priv->rxqlock, flags);
@@ -297,8 +299,10 @@ int usb_bustx_thread(void *data)
 		if (!wait_for_completion_interruptible(&bus->bustx_trgg)) {
 			if (usbdev->bus_if->state == BUS_DOWN_ST)
 				continue;
+			rwnx_wakeup_lock(usbdev->rwnx_hw->ws_tx);
 			if (usbdev->tx_post_count > 0)
 				aicwf_usb_tx_process(usbdev);
+			rwnx_wakeup_unlock(usbdev->rwnx_hw->ws_tx);
 		}
 	}
 
@@ -309,6 +313,7 @@ int usb_busrx_thread(void *data)
 {
 	struct aicwf_rx_priv *rx_priv = (struct aicwf_rx_priv *)data;
 	struct aicwf_bus *bus_if = rx_priv->usbdev->bus_if;
+	struct aic_usb_dev *usbdev = rx_priv->usbdev;
 
 	while (1) {
 		if (kthread_should_stop()) {
@@ -318,7 +323,9 @@ int usb_busrx_thread(void *data)
 		if (!wait_for_completion_interruptible(&bus_if->busrx_trgg)) {
 			if (bus_if->state == BUS_DOWN_ST)
 				continue;
+			rwnx_wakeup_lock(usbdev->rwnx_hw->ws_rx);
 			aicwf_process_rxframes(rx_priv);
+			rwnx_wakeup_unlock(usbdev->rwnx_hw->ws_rx);
 		}
 	}
 
@@ -556,7 +563,7 @@ static int aicwf_usb_bus_txdata(struct device *dev, struct sk_buff *skb)
 	complete(&bus_if->bustx_trgg);
 	ret = 0;
 
-	flow_ctrl:
+flow_ctrl:
 	spin_lock_irqsave(&usb_dev->tx_flow_lock, flags);
 	if (usb_dev->tx_free_count < AICWF_USB_TX_LOW_WATER) {
 		usb_dev->tbusy = true;
@@ -780,8 +787,6 @@ static int aicwf_parse_usb(struct aic_usb_dev *usb_dev, struct usb_interface *in
 	exit:
 	return ret;
 }
-
-
 
 static struct aicwf_bus_ops aicwf_usb_bus_ops = {
 	.start = aicwf_usb_bus_start,

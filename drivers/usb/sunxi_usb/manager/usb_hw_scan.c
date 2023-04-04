@@ -733,8 +733,8 @@ failed:
 	if (port_info->id.valid)
 		gpio_free(port_info->id.gpio);
 
-	// if (port_info->det_vbus.valid)
-	// 	gpio_free(port_info->det_vbus.gpio);
+	if (port_info->det_vbus.valid)
+		gpio_free(port_info->det_vbus.gpio);
 #endif
 	__usb_hw_scan = null_hw_scan;
 	return ret;
@@ -751,8 +751,8 @@ __s32 usb_hw_scan_exit(struct usb_cfg *cfg)
 	if (cfg->port.id.valid)
 		gpio_free(cfg->port.id.gpio);
 
-	// if (cfg->port.det_vbus.valid)
-	// 	gpio_free(cfg->port.det_vbus.gpio);
+	if (cfg->port.det_vbus.valid)
+		gpio_free(cfg->port.det_vbus.gpio);
 
 	return 0;
 }

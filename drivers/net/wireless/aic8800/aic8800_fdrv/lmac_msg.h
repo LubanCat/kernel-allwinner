@@ -364,8 +364,8 @@ enum mm_msg_tag {
 	MM_GET_STA_INFO_REQ,
 	MM_GET_STA_INFO_CFM,
 
-	MM_SET_TXPWR_IDX_REQ,
-	MM_SET_TXPWR_IDX_CFM,
+	MM_SET_TXPWR_IDX_LVL_REQ,
+	MM_SET_TXPWR_IDX_LVL_CFM,
 
 	MM_SET_TXPWR_OFST_REQ,
 	MM_SET_TXPWR_OFST_CFM,
@@ -1211,6 +1211,20 @@ struct mm_set_txpwr_idx_req {
 
 typedef struct {
 	u8_l enable;
+	s8_l pwrlvl_11b_11ag_2g4[12];
+	s8_l pwrlvl_11n_11ac_2g4[10];
+	s8_l pwrlvl_11ax_2g4[12];
+} txpwr_lvl_conf_v2_t;
+
+struct mm_set_txpwr_lvl_req {
+	union {
+		txpwr_idx_conf_t txpwr_lvl;
+		txpwr_lvl_conf_v2_t txpwr_lvl_v2;
+	};
+};
+
+typedef struct {
+	u8_l enable;
 	s8_l chan_1_4;
 	s8_l chan_5_9;
 	s8_l chan_10_13;
@@ -1219,6 +1233,12 @@ typedef struct {
 	s8_l chan_122_140;
 	s8_l chan_142_165;
 } txpwr_ofst_conf_t;
+
+typedef struct {
+	u8_l enable;
+	u8_l xtal_cap;
+	u8_l xtal_cap_fine;
+} xtal_cap_conf_t;
 
 struct mm_set_txpwr_ofst_req {
 	txpwr_ofst_conf_t txpwr_ofst;

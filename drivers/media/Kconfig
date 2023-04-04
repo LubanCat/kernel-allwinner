@@ -91,6 +91,7 @@ source "drivers/media/cec/Kconfig"
 
 source "drivers/media/mc/Kconfig"
 source "drivers/media/cedar-ve/Kconfig"
+source "drivers/media/tsc/Kconfig"
 
 #
 # Video4Linux support

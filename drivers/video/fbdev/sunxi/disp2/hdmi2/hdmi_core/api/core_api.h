@@ -913,6 +913,7 @@ struct hdmi_dev_func {
 #ifdef CONFIG_AW_PHY
 	void (*phy_reset)(void);
 	int (*phy_config_resume)(void);
+	void (*set_phy_base_addr)(uintptr_t reg_base);
 #endif
 };
 

@@ -626,10 +626,10 @@ static void rwnx_rx_mgmt_any(struct rwnx_hw *rwnx_hw, struct sk_buff *skb,
 {
 	struct rwnx_vif *rwnx_vif;
 	int vif_idx = hw_rxhdr->flags_vif_idx;
-
+#ifdef CREATE_TRACE_POINTS
 	trace_mgmt_rx(hw_rxhdr->phy_info.phy_prim20_freq, vif_idx,
 				  hw_rxhdr->flags_sta_idx, (struct ieee80211_mgmt *)skb->data);
-
+#endif
 	if (vif_idx == RWNX_INVALID_VIF) {
 		list_for_each_entry(rwnx_vif, &rwnx_hw->vifs, list) {
 			if (!rwnx_vif->up)
@@ -1264,13 +1264,6 @@ void reord_deinit_sta(struct aicwf_rx_priv *rx_priv, struct reord_ctrl_info *reo
 	for (i = 0; i < 8; i++) {
 		struct recv_msdu *req, *next;
 		preorder_ctrl = &reord_info->preorder_ctrl[i];
-		if (preorder_ctrl->enable) {
-			preorder_ctrl->enable = false;
-			if (timer_pending(&preorder_ctrl->reord_timer)) {
-				ret = del_timer_sync(&preorder_ctrl->reord_timer);
-			}
-			cancel_work_sync(&preorder_ctrl->reord_timer_work);
-		}
 		spin_lock_irqsave(&preorder_ctrl->reord_list_lock, flags);
 		list_for_each_entry_safe(req, next, &preorder_ctrl->reord_list, reord_pending_list) {
 			list_del_init(&req->reord_pending_list);
@@ -1280,11 +1273,13 @@ void reord_deinit_sta(struct aicwf_rx_priv *rx_priv, struct reord_ctrl_info *reo
 			reord_rxframe_free(&rx_priv->freeq_lock, &rx_priv->rxframes_freequeue, &req->rxframe_list);
 		}
 		spin_unlock_irqrestore(&preorder_ctrl->reord_list_lock, flags);
+		if (timer_pending(&preorder_ctrl->reord_timer)) {
+			ret = del_timer_sync(&preorder_ctrl->reord_timer);
+		}
+		cancel_work_sync(&preorder_ctrl->reord_timer_work);
 	}
 
-	spin_lock_bh(&rx_priv->stas_reord_lock);
 	list_del(&reord_info->list);
-	spin_unlock_bh(&rx_priv->stas_reord_lock);
 	kfree(reord_info);
 }
 
@@ -1475,7 +1470,7 @@ int reord_process_unit(struct aicwf_rx_priv *rx_priv, struct sk_buff *skb, u16 s
 	pframe->forward = forward;
 	preorder_ctrl = pframe->preorder_ctrl;
 
-	if ((ntohs(eh->h_proto) == ETH_P_PAE) || (((rwnx_vif->wdev.iftype == NL80211_IFTYPE_STATION) || (rwnx_vif->wdev.iftype == NL80211_IFTYPE_P2P_CLIENT)) && is_mcast))
+	if ((ntohs(eh->h_proto) == ETH_P_PAE) || is_mcast)
 		return reord_single_frame_ind(rx_priv, pframe);
 
 	if ((rwnx_vif->wdev.iftype == NL80211_IFTYPE_STATION) || (rwnx_vif->wdev.iftype == NL80211_IFTYPE_P2P_CLIENT))

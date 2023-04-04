@@ -111,8 +111,10 @@ void rwnx_platform_off(struct rwnx_hw *rwnx_hw, void **config);
 int rwnx_platform_register_drv(void);
 void rwnx_platform_unregister_drv(void);
 
+void get_userconfig_txpwr_lvl_v2(txpwr_lvl_conf_v2_t *txpwr_lvl_v2);
 void get_userconfig_txpwr_idx(txpwr_idx_conf_t *txpwr_idx);
 void get_userconfig_txpwr_ofst(txpwr_ofst_conf_t *txpwr_ofst);
+void get_userconfig_xtal_cap(xtal_cap_conf_t *xtal_cap);
 
 extern struct device *rwnx_platform_get_dev(struct rwnx_plat *rwnx_plat);
 

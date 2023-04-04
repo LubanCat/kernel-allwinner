@@ -149,16 +149,19 @@
 			opp-microvolt-a2 = <900000>;
 			opp-microvolt-a3 = <900000>;
 			opp-microvolt-a4 = <900000>;
+			opp-microvolt-a5 = <900000>;
+			opp-microvolt-a6 = <900000>;
 			clock-latency-ns = <244144>; /* 8 32k periods */
-			opp-supported-hw = <0x1f>;
+			opp-supported-hw = <0x7f>;
 		};
 
 		opp@600000000 {
 			opp-hz = /bits/ 64 <600000000>;
 			opp-microvolt-a1 = <900000>;
 			opp-microvolt-a4 = <900000>;
+			opp-microvolt-a6 = <900000>;
 			clock-latency-ns = <244144>; /* 8 32k periods */
-			opp-supported-hw = <0x12>;
+			opp-supported-hw = <0x52>;
 		};
 
 		opp@720000000 {
@@ -166,83 +169,111 @@
 			opp-microvolt-a0 = <900000>;
 			opp-microvolt-a2 = <900000>;
 			opp-microvolt-a3 = <900000>;
+			opp-microvolt-a5 = <950000>;
 			clock-latency-ns = <244144>; /* 8 32k periods */
-			opp-supported-hw = <0xd>;
+			opp-supported-hw = <0x2d>;
 		};
 
 		opp@792000000 {
 			opp-hz = /bits/ 64 <792000000>;
 			opp-microvolt-a1 = <900000>;
 			opp-microvolt-a4 = <940000>;
+			opp-microvolt-a6 = <940000>;
 			clock-latency-ns = <244144>; /* 8 32k periods */
-			opp-supported-hw = <0x12>;
+			opp-supported-hw = <0x52>;
 		};
 
 		opp@936000000 {
 			opp-hz = /bits/ 64 <936000000>;
-			opp-microvolt-a0 = <900000>;
 			opp-microvolt-a2 = <900000>;
 			opp-microvolt-a3 = <900000>;
+			opp-microvolt-a5 = <950000>;
 			clock-latency-ns = <244144>; /* 8 32k periods */
-			opp-supported-hw = <0xd>;
+			opp-supported-hw = <0x2c>;
 		};
 
 		opp@1008000000 {
 			opp-hz = /bits/ 64 <1008000000>;
-			opp-microvolt-a0 = <950000>;
 			opp-microvolt-a1 = <940000>;
 			opp-microvolt-a2 = <950000>;
 			opp-microvolt-a3 = <950000>;
 			opp-microvolt-a4 = <1020000>;
+			opp-microvolt-a5 = <1000000>;
+			opp-microvolt-a6 = <1020000>;
 			clock-latency-ns = <244144>; /* 8 32k periods */
-			opp-supported-hw = <0x1f>;
+			opp-supported-hw = <0x7e>;
+		};
+
+		opp@1032000000 {
+			opp-hz = /bits/ 64 <1032000000>;
+			opp-microvolt-a0 = <900000>;
+			clock-latency-ns = <244144>; /* 8 32k periods */
+			opp-supported-hw = <0x1>;
 		};
 
 		opp@1104000000 {
 			opp-hz = /bits/ 64 <1104000000>;
-			opp-microvolt-a0 = <1000000>;
+			opp-microvolt-a0 = <950000>;
 			opp-microvolt-a2 = <1000000>;
 			opp-microvolt-a3 = <1000000>;
+			opp-microvolt-a5 = <1050000>;
 			clock-latency-ns = <244144>; /* 8 32k periods */
-			opp-supported-hw = <0xd>;
+			opp-supported-hw = <0x2d>;
 		};
 
 		opp@1200000000 {
 			opp-hz = /bits/ 64 <1200000000>;
-			opp-microvolt-a0 = <1050000>;
+			opp-microvolt-a0 = <1000000>;
 			opp-microvolt-a1 = <1020000>;
 			opp-microvolt-a2 = <1050000>;
 			opp-microvolt-a3 = <1050000>;
 			opp-microvolt-a4 = <1100000>;
+			opp-microvolt-a5 = <1100000>;
+			opp-microvolt-a6 = <1100000>;
 			clock-latency-ns = <244144>; /* 8 32k periods */
-			opp-supported-hw = <0x1f>;
+			opp-supported-hw = <0x7f>;
+		};
+
+		opp@1296000000 {
+			opp-hz = /bits/ 64 <1296000000>;
+			opp-microvolt-a0 = <1050000>;
+			clock-latency-ns = <244144>; /* 8 32k periods */
+			opp-supported-hw = <0x1>;
 		};
 
 		opp@1320000000 {
 			opp-hz = /bits/ 64 <1320000000>;
-			opp-microvolt-a0 = <1100000>;
 			opp-microvolt-a2 = <1100000>;
 			opp-microvolt-a3 = <1100000>;
-			opp-microvolt-a4 = <1120000>;
+			opp-microvolt-a5 = <1150000>;
 			clock-latency-ns = <244144>; /* 8 32k periods */
-			opp-supported-hw = <0x1d>;
+			opp-supported-hw = <0x2c>;
+		};
+
+		opp@1344000000 {
+			opp-hz = /bits/ 64 <1344000000>;
+			opp-microvolt-a4 = <1120000>;
+			opp-microvolt-a6 = <1120000>;
+			clock-latency-ns = <244144>; /* 8 32k periods */
+			opp-supported-hw = <0x50>;
 		};
 
 		opp@1416000000 {
 			opp-hz = /bits/ 64 <1416000000>;
-			opp-microvolt-a0 = <1150000>;
+			opp-microvolt-a0 = <1100000>;
 			opp-microvolt-a2 = <1150000>;
-			opp-microvolt-a3 = <11600000>;
+			opp-microvolt-a3 = <1160000>;
 			clock-latency-ns = <244144>; /* 8 32k periods */
 			opp-supported-hw = <0xd>;
 		};
 
 		opp@1512000000 {
 			opp-hz = /bits/ 64 <1512000000>;
+			opp-microvolt-a0 = <1150000>;
 			opp-microvolt-a1 = <1100000>;
 			opp-microvolt-a3 = <1100000>;
 			clock-latency-ns = <244144>; /* 8 32k periods */
-			opp-supported-hw = <0xa>;
+			opp-supported-hw = <0xb>;
 		};
 	};
 
@@ -1275,6 +1306,18 @@
 			dmas = <&dma 23>, <&dma 23>;
 			dma-names = "tx", "rx";
 			status = "disabled";
+		};
+
+
+		ts0:ts0@5060000 {
+			compatible = "allwinner,sun50i-tsc";
+			device_type = "ts0";
+			reg = <0x0 0x05060000 0x0 0x1000>;
+			interrupts = <GIC_SPI 17 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&ccu CLK_PLL_PERIPH0>, <&ccu CLK_TS>;
+			clock-frequency = <120000000>;
+			ts0config = <0x1>;
+			resets = <&ccu RST_BUS_TS>;
 		};
 
 		ths: thermal-sensor@5070400 {

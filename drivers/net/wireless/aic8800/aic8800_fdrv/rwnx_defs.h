@@ -126,6 +126,13 @@ struct rwnx_csa {
 	struct work_struct work;
 };
 
+struct apm_probe_sta {
+	u8 sta_mac_addr[6];
+	u8 vif_idx;
+	u64 probe_id;
+	struct work_struct apmprobestaWork;
+	struct workqueue_struct *apmprobesta_wq;
+};
 /// Possible States of the TDLS link.
 enum tdls_status_tag {
 		/// TDLS link is not active (no TDLS peer connected)
@@ -229,6 +236,7 @@ struct rwnx_vif {
 
 	u8_l key_has_add;
 	u8_l is_p2p_vif;
+	struct apm_probe_sta sta_probe;
 };
 
 #define RWNX_VIF_TYPE(rwnx_vif) (rwnx_vif->wdev.iftype)
@@ -508,6 +516,8 @@ struct rwnx_hw {
 	bool band_5g_support;
 	u8_l vendor_info;
 	bool fwlog_en;
+	u16  chipid;
+	u8   cpmode;
 
 	struct list_head defrag_list;
 	spinlock_t defrag_lock;
@@ -516,6 +526,13 @@ struct rwnx_hw {
 	struct workqueue_struct *apmStaloss_wq;
 	u8 apm_vif_idx;
 	u8 sta_mac_addr[6];
+
+	struct wakeup_source *ws_rx;
+	struct wakeup_source *ws_tx;
+	struct wakeup_source *ws_pwrctrl;
+
+	u8 wakeup_enable;
+	u32 hostwake_irq_num;
 };
 
 u8 *rwnx_build_bcn(struct rwnx_bcn *bcn, struct cfg80211_beacon_data *new);

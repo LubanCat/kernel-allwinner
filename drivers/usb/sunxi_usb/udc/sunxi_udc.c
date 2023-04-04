@@ -925,6 +925,9 @@ static int dma_got_short_pkt(struct sunxi_udc_ep *ep, struct sunxi_udc_request *
 	dma_r_bc = USBC_Readw(USBC_REG_DMA_RESIDUAL_BC(pchan->reg_base, pchan->channel_num));
 	fifo_count = USBC_ReadLenFromFifo(g_sunxi_udc_io.usb_bsp_hdle, USBC_EP_TYPE_RX);
 
+	if (dma_r_bc == 0)
+		return 0;
+
 	if (g_dma_debug) {
 		DMSG_INFO("read_fifo: dma_working... rx_cnt = %d, dma_channel = %d, dma_bc = %d, dma_r_bc = %d\n",
 				fifo_count, pchan->channel_num, dma_bc, dma_r_bc);
@@ -1729,6 +1732,11 @@ static void sunxi_udc_stop_dma_work(struct sunxi_udc *dev, u32 unlock)
 			}
 
 #ifdef SW_UDC_DMA_INNER
+			/*
+			 * we need to stop dma manually
+			 */
+			sunxi_udc_dma_chan_disable((dm_hdl_t)ep->dma_hdle);
+			sunxi_udc_dma_release((dm_hdl_t)ep->dma_hdle);
 			ep->dma_hdle = NULL;
 #else
 			ep->sunxi_udc_dma[ep->num].is_start = 0;
@@ -2635,7 +2643,8 @@ static int sunxi_udc_dequeue(struct usb_ep *_ep, struct usb_request *_req)
 		 */
 #ifdef SW_UDC_DMA_INNER
 		if (is_sunxi_udc_dma_capable(req, ep)) {
-			sunxi_udc_dma_chan_disable((dm_hdl_t)ep->dma_hdle);
+			if (ep->dma_hdle != NULL)
+				sunxi_udc_dma_chan_disable((dm_hdl_t)ep->dma_hdle);
 			sunxi_udc_clean_dma_status(ep);
 		}
 #endif
@@ -3111,11 +3120,12 @@ static int sunxi_udc_stop(struct usb_gadget *g)
 	DMSG_INFO_UDC("[%s]: usb_gadget_unregister_driver() '%s'\n",
 		gadget_name, driver->driver.name);
 
+	/* Disable udc */
+	sunxi_udc_disable(udc);
+
 	udc->gadget.dev.driver = NULL;
 	udc->driver = NULL;
 
-	/* Disable udc */
-	sunxi_udc_disable(udc);
 	return 0;
 }
 
@@ -3511,6 +3521,11 @@ __acquires(sunxi_udc.lock)
 	if (udc->driver && udc->driver->disconnect)
 		udc->driver->disconnect(&udc->gadget);
 
+	if (udc->driver && is_udc_enable) {
+		sunxi_udc_disable(udc);
+		cfg_udc_command(SW_UDC_P_DISABLE);
+	}
+
 	if (is_udc_support_dma()) {
 		spin_lock_irqsave(&udc->lock, flags);
 		sunxi_udc_stop_dma_work(udc, 0);
@@ -3856,8 +3871,7 @@ static void cfg_udc_command(enum sunxi_udc_cmd_e cmd)
 			if (udc->driver)
 				usbd_start_work();
 			else
-				DMSG_INFO_UDC("udc->driver is null, ");
-				DMSG_INFO_UDC("udc is need not start\n");
+				DMSG_INFO_UDC("udc->driver is null, udc is need not start\n");
 		}
 		break;
 	case SW_UDC_P_DISABLE:
@@ -3865,8 +3879,7 @@ static void cfg_udc_command(enum sunxi_udc_cmd_e cmd)
 			if (udc->driver)
 				usbd_stop_work();
 			else
-				DMSG_INFO_UDC("udc->driver is null, ");
-				DMSG_INFO_UDC("udc is need not stop\n");
+				DMSG_INFO_UDC("udc->driver is null, udc is need not stop\n");
 		}
 		break;
 	case SW_UDC_P_RESET:

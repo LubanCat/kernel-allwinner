@@ -33,6 +33,15 @@ static struct aic_sdio_dev *aicbsp_sdiodev;
 static struct semaphore *aicbsp_notify_semaphore;
 static const struct sdio_device_id aicbsp_sdmmc_ids[];
 
+static struct device_match_entry aicdev_match_table[] = {
+	{0x544a, 0x0146, PRODUCT_ID_AIC8800D,   "aic8800d",   0, 0}, // 8800d in bootloader mode
+	{0xc8a1, 0xc18d, PRODUCT_ID_AIC8800DC,  "aic8800dc",  0, 0}, // 8800dc in bootloader mode
+//	{0x5449, 0x0145, PRODUCT_ID_AIC8800DW,  "aic8800dw",  0, 0},
+//	{0x5449, 0x0145, PRODUCT_ID_AIC8800D80, "aic8800d80", 0, 0},
+};
+
+static struct device_match_entry *aic_matched_ic;
+
 static int aicbsp_dummy_probe(struct sdio_func *func, const struct sdio_device_id *id)
 {
 	if (func && (func->num != 2))
@@ -142,7 +151,7 @@ void *aicbsp_get_drvdata(void *args)
 	(void)args;
 	if (aicbsp_sdiodev)
 		return aicbsp_sdiodev->bus_if;
-	return NULL;
+	return dev_get_drvdata((const struct device *)args);
 }
 
 static int aicbsp_sdio_probe(struct sdio_func *func,
@@ -152,11 +161,21 @@ static int aicbsp_sdio_probe(struct sdio_func *func,
 	struct aic_sdio_dev *sdiodev;
 	struct aicwf_bus *bus_if;
 	int err = -ENODEV;
+	int i = 0;
 
 	sdio_dbg("%s:%d\n", __func__, func->num);
-	if (func->num != 2) {
-		return err;
+	for (i = 0; i < sizeof(aicdev_match_table) / sizeof(aicdev_match_table[0]); i++) {
+		if (func->vendor == aicdev_match_table[i].vid && func->device == aicdev_match_table[i].pid) {
+			aic_matched_ic = &aicdev_match_table[i];
+		}
 	}
+
+	if (aic_matched_ic == NULL)
+		return err;
+
+	sdio_dbg("%s:%d, matched chip: %s\n", __func__, func->num, aic_matched_ic ? aic_matched_ic->name : "none");
+	if (func->num != 2)
+		return err;
 
 	func = func->card->sdio_func[1 - 1]; //replace 2 with 1
 	host = func->card->host;
@@ -175,9 +194,16 @@ static int aicbsp_sdio_probe(struct sdio_func *func,
 		return -ENOMEM;
 	}
 
-	sdiodev->func = func;
+	aicbsp_info.chipinfo = aic_matched_ic;
+	sdiodev->func[0] = func;
 	sdiodev->bus_if = bus_if;
 	bus_if->bus_priv.sdio = sdiodev;
+
+	if (aicbsp_info.chipinfo->chipid == PRODUCT_ID_AIC8800DC) {
+		sdiodev->func[1] = func->card->sdio_func[1];
+		dev_set_drvdata(&sdiodev->func[1]->dev, bus_if);
+	}
+
 	dev_set_drvdata(&func->dev, bus_if);
 	sdiodev->dev = &func->dev;
 	err = aicwf_sdio_func_init(sdiodev);
@@ -201,6 +227,7 @@ fail:
 	dev_set_drvdata(&func->dev, NULL);
 	kfree(sdiodev);
 	kfree(bus_if);
+	aic_matched_ic = NULL;
 	return err;
 }
 
@@ -222,19 +249,20 @@ static void aicbsp_sdio_remove(struct sdio_func *func)
 		goto done;
 	}
 
-	func = sdiodev->func;
+	func = sdiodev->func[0];
 	host = func->card->host;
 	host->caps &= ~MMC_CAP_NONREMOVABLE;
 
 	aicwf_sdio_release(sdiodev);
 	aicwf_sdio_func_deinit(sdiodev);
 
-	dev_set_drvdata(&sdiodev->func->dev, NULL);
+	dev_set_drvdata(&sdiodev->func[0]->dev, NULL);
 	kfree(sdiodev);
 	kfree(bus_if);
 
 done:
 	aicbsp_sdiodev = NULL;
+	aic_matched_ic = NULL;
 	sdio_dbg("%s done\n", __func__);
 }
 
@@ -270,7 +298,8 @@ static int aicbsp_sdio_resume(struct device *dev)
 }
 
 static const struct sdio_device_id aicbsp_sdmmc_ids[] = {
-	{SDIO_DEVICE_CLASS(SDIO_CLASS_WLAN)},
+	{SDIO_DEVICE(0x544a, 0x0146)}, // aic8800d in bootloader mode
+	{SDIO_DEVICE(0xc8a1, 0xc18d)}, // aic8800dc in bootloader mode
 	{ },
 };
 
@@ -352,27 +381,34 @@ void aicbsp_sdio_exit(void)
 
 void aicbsp_sdio_release(struct aic_sdio_dev *sdiodev)
 {
+	int funcnum = 1, i = 0;
+
+	if (aicbsp_info.chipinfo->chipid == PRODUCT_ID_AIC8800DC)
+		funcnum = 2;
+
 	sdiodev->bus_if->state = BUS_DOWN_ST;
-	sdio_claim_host(sdiodev->func);
-	sdio_release_irq(sdiodev->func);
-	sdio_release_host(sdiodev->func);
+	for (i = 0; i < funcnum; i++) {
+		sdio_claim_host(sdiodev->func[i]);
+		sdio_release_irq(sdiodev->func[i]);
+		sdio_release_host(sdiodev->func[i]);
+	}
 }
 
-int aicwf_sdio_readb(struct aic_sdio_dev *sdiodev, uint regaddr, u8 *val)
+int aicwf_sdio_readb(struct sdio_func *func, uint regaddr, u8 *val)
 {
 	int ret;
-	sdio_claim_host(sdiodev->func);
-	*val = sdio_readb(sdiodev->func, regaddr, &ret);
-	sdio_release_host(sdiodev->func);
+	sdio_claim_host(func);
+	*val = sdio_readb(func, regaddr, &ret);
+	sdio_release_host(func);
 	return ret;
 }
 
-int aicwf_sdio_writeb(struct aic_sdio_dev *sdiodev, uint regaddr, u8 val)
+int aicwf_sdio_writeb(struct sdio_func *func, uint regaddr, u8 val)
 {
 	int ret;
-	sdio_claim_host(sdiodev->func);
-	sdio_writeb(sdiodev->func, val, regaddr, &ret);
-	sdio_release_host(sdiodev->func);
+	sdio_claim_host(func);
+	sdio_writeb(func, val, regaddr, &ret);
+	sdio_release_host(func);
 	return ret;
 }
 
@@ -383,7 +419,7 @@ int aicwf_sdio_flow_ctrl(struct aic_sdio_dev *sdiodev)
 	u32 count = 0;
 
 	while (true) {
-		ret = aicwf_sdio_readb(sdiodev, SDIOWIFI_FLOW_CTRL_REG, &fc_reg);
+		ret = aicwf_sdio_readb(sdiodev->func[0], SDIOWIFI_FLOW_CTRL_REG, &fc_reg);
 		if (ret) {
 			return -1;
 		}
@@ -413,9 +449,20 @@ int aicwf_sdio_send_pkt(struct aic_sdio_dev *sdiodev, u8 *buf, uint count)
 {
 	int ret = 0;
 
-	sdio_claim_host(sdiodev->func);
-	ret = sdio_writesb(sdiodev->func, 7, buf, count);
-	sdio_release_host(sdiodev->func);
+	sdio_claim_host(sdiodev->func[0]);
+	ret = sdio_writesb(sdiodev->func[0], 7, buf, count);
+	sdio_release_host(sdiodev->func[0]);
+
+	return ret;
+}
+
+int aicwf_sdio_send_msg(struct aic_sdio_dev *sdiodev, u8 *buf, uint count)
+{
+	int ret = 0;
+
+	sdio_claim_host(sdiodev->func[0]);
+	ret = sdio_writesb(sdiodev->func[1], 7, buf, count);
+	sdio_release_host(sdiodev->func[1]);
 
 	return ret;
 }
@@ -429,9 +476,30 @@ int aicwf_sdio_recv_pkt(struct aic_sdio_dev *sdiodev, struct sk_buff *skbbuf,
 		return -EINVAL;;
 	}
 
-	sdio_claim_host(sdiodev->func);
-	ret = sdio_readsb(sdiodev->func, skbbuf->data, 8, size);
-	sdio_release_host(sdiodev->func);
+	sdio_claim_host(sdiodev->func[0]);
+	ret = sdio_readsb(sdiodev->func[0], skbbuf->data, 8, size);
+	sdio_release_host(sdiodev->func[0]);
+
+	if (ret < 0) {
+		return ret;
+	}
+	skbbuf->len = size;
+
+	return ret;
+}
+
+int aicwf_sdio_recv_msg(struct aic_sdio_dev *sdiodev, struct sk_buff *skbbuf,
+	u32 size)
+{
+	int ret;
+
+	if ((!skbbuf) || (!size)) {
+		return -EINVAL;;
+	}
+
+	sdio_claim_host(sdiodev->func[1]);
+	ret = sdio_readsb(sdiodev->func[1], skbbuf->data, 8, size);
+	sdio_release_host(sdiodev->func[1]);
 
 	if (ret < 0) {
 		return ret;
@@ -451,7 +519,7 @@ int aicwf_sdio_wakeup(struct aic_sdio_dev *sdiodev)
 		//if (sdiodev->rwnx_hw->vif_started) {
 			down(&sdiodev->pwrctl_wakeup_sema);
 			while (write_retry) {
-				ret = aicwf_sdio_writeb(sdiodev, SDIOWIFI_WAKEUP_REG, 1);
+				ret = aicwf_sdio_writeb(sdiodev->func[0], SDIOWIFI_WAKEUP_REG, 1);
 				if (ret) {
 					txrx_err("sdio wakeup fail\n");
 					ret = -1;
@@ -459,7 +527,7 @@ int aicwf_sdio_wakeup(struct aic_sdio_dev *sdiodev)
 					read_retry = 10;
 					while (read_retry) {
 						u8 val;
-						ret = aicwf_sdio_readb(sdiodev, SDIOWIFI_SLEEP_REG, &val);
+						ret = aicwf_sdio_readb(sdiodev->func[0], SDIOWIFI_SLEEP_REG, &val);
 						if ((ret == 0) && (val & 0x10)) {
 							break;
 						}
@@ -490,7 +558,7 @@ int aicwf_sdio_sleep_allow(struct aic_sdio_dev *sdiodev)
 	struct aicwf_bus *bus_if = sdiodev->bus_if;
 
 	if (bus_if->state == BUS_DOWN_ST) {
-		ret = aicwf_sdio_writeb(sdiodev, SDIOWIFI_SLEEP_REG, 0x10);
+		ret = aicwf_sdio_writeb(sdiodev->func[0], SDIOWIFI_SLEEP_REG, 0x10);
 		if (ret) {
 			sdio_err("Write sleep fail!\n");
 	}
@@ -501,7 +569,7 @@ int aicwf_sdio_sleep_allow(struct aic_sdio_dev *sdiodev)
 	if (sdiodev->state == SDIO_ACTIVE_ST) {
 		{
 			sdio_dbg("s\n");
-			ret = aicwf_sdio_writeb(sdiodev, SDIOWIFI_SLEEP_REG, 0x10);
+			ret = aicwf_sdio_writeb(sdiodev->func[0], SDIOWIFI_SLEEP_REG, 0x10);
 			if (ret)
 				sdio_err("Write sleep fail!\n");
 		}
@@ -573,7 +641,7 @@ static int aicwf_sdio_intr_get_len_bytemode(struct aic_sdio_dev *sdiodev, u8 *by
 	if (sdiodev->bus_if->state == BUS_DOWN_ST) {
 		*byte_len = 0;
 	} else {
-		ret = aicwf_sdio_readb(sdiodev, SDIOWIFI_BYTEMODE_LEN_REG, byte_len);
+		ret = aicwf_sdio_readb(sdiodev->func[0], SDIOWIFI_BYTEMODE_LEN_REG, byte_len);
 		sdiodev->rx_priv->data_len = (*byte_len)*4;
 	}
 
@@ -636,6 +704,33 @@ struct sk_buff *aicwf_sdio_readframes(struct aic_sdio_dev *sdiodev)
 	return skb;
 }
 
+struct sk_buff *aicwf_sdio_readmessages(struct aic_sdio_dev *sdiodev)
+{
+	int ret = 0;
+	u32 size = 0;
+	struct sk_buff *skb = NULL;
+	struct aicwf_bus *bus_if = dev_get_drvdata(sdiodev->dev);
+
+	if (bus_if->state == BUS_DOWN_ST) {
+		sdio_dbg("bus down\n");
+		return NULL;
+	}
+
+	size = sdiodev->rx_priv->data_len;
+	skb =  __dev_alloc_skb(size, GFP_KERNEL);
+	if (!skb) {
+		return NULL;
+	}
+
+	ret = aicwf_sdio_recv_msg(sdiodev, skb, size);
+	if (ret) {
+		dev_kfree_skb(skb);
+		skb = NULL;
+	}
+
+	return skb;
+}
+
 static int aicwf_sdio_tx_msg(struct aic_sdio_dev *sdiodev)
 {
 	int err = 0;
@@ -663,22 +758,31 @@ static int aicwf_sdio_tx_msg(struct aic_sdio_dev *sdiodev)
 	} else
 		len = payload_len;
 
-	buffer_cnt = aicwf_sdio_flow_ctrl(sdiodev);
-	while ((buffer_cnt <= 0 || len > (buffer_cnt * BUFFER_SIZE)) && retry < 5) {
-		retry++;
+	if (aicbsp_info.chipinfo->chipid == PRODUCT_ID_AIC8800D) {
 		buffer_cnt = aicwf_sdio_flow_ctrl(sdiodev);
+		while ((buffer_cnt <= 0 || len > (buffer_cnt * BUFFER_SIZE)) && retry < 5) {
+			retry++;
+			buffer_cnt = aicwf_sdio_flow_ctrl(sdiodev);
+		}
 	}
-
 	down(&sdiodev->tx_priv->cmd_txsema);
-	if (buffer_cnt > 0 && len < (buffer_cnt * BUFFER_SIZE)) {
-		err = aicwf_sdio_send_pkt(sdiodev, payload, len);
+
+	if (aicbsp_info.chipinfo->chipid == PRODUCT_ID_AIC8800D) {
+		if (buffer_cnt > 0 && len < (buffer_cnt * BUFFER_SIZE)) {
+			err = aicwf_sdio_send_pkt(sdiodev, payload, len);
+			if (err) {
+				sdio_err("aicwf_sdio_send_pkt fail%d\n", err);
+			}
+		} else {
+			up(&sdiodev->tx_priv->cmd_txsema);
+			sdio_err("tx msg fc retry fail\n");
+			return -1;
+		}
+	} else if (aicbsp_info.chipinfo->chipid == PRODUCT_ID_AIC8800DC) {
+		err = aicwf_sdio_send_msg(sdiodev, payload, len);
 		if (err) {
 			sdio_err("aicwf_sdio_send_pkt fail%d\n", err);
 		}
-	} else {
-		up(&sdiodev->tx_priv->cmd_txsema);
-		sdio_err("tx msg fc retry fail\n");
-		return -1;
 	}
 
 	sdiodev->tx_priv->cmd_txstate = false;
@@ -736,7 +840,9 @@ static void aicwf_sdio_tx_process(struct aic_sdio_dev *sdiodev)
 		return;
 	}
 
-	sdiodev->tx_priv->fw_avail_bufcnt = aicwf_sdio_flow_ctrl(sdiodev);
+	if (!aicwf_is_framequeue_empty(&sdiodev->tx_priv->txq))
+		sdiodev->tx_priv->fw_avail_bufcnt = aicwf_sdio_flow_ctrl(sdiodev);
+
 	while (!aicwf_is_framequeue_empty(&sdiodev->tx_priv->txq)) {
 		aicwf_sdio_send(sdiodev->tx_priv);
 		if (sdiodev->tx_priv->cmd_txstate)
@@ -797,7 +903,7 @@ static int aicwf_sdio_bus_txmsg(struct device *dev, u8 *msg, uint msglen)
 
 	if (sdiodev->tx_priv->cmd_txstate) {
 		int timeout = msecs_to_jiffies(CMD_TX_TIMEOUT);
-		ret = wait_event_interruptible_timeout(sdiodev->tx_priv->cmd_txdone_wait, \
+		ret = wait_event_timeout(sdiodev->tx_priv->cmd_txdone_wait, \
 											!(sdiodev->tx_priv->cmd_txstate), timeout);
 	}
 
@@ -959,20 +1065,37 @@ static int aicwf_sdio_bus_start(struct device *dev)
 	struct aic_sdio_dev *sdiodev = bus_if->bus_priv.sdio;
 	int ret = 0;
 
-#if 1
-	sdio_claim_host(sdiodev->func);
-	sdio_claim_irq(sdiodev->func, aicwf_sdio_hal_irqhandler);
-#else
-	//since we have func2 we don't register irq handler
-	sdio_claim_irq(sdiodev->func, NULL);
-	sdiodev->func->irq_handler = (sdio_irq_handler_t *)aicwf_sdio_hal_irqhandler;
-#endif
-	//enable sdio interrupt
-	ret = aicwf_sdio_writeb(sdiodev, SDIOWIFI_INTR_CONFIG_REG, 0x07);
-	sdio_release_host(sdiodev->func);
+	if (aicbsp_info.chipinfo->chipid == PRODUCT_ID_AIC8800D) {
+		sdio_claim_host(sdiodev->func[0]);
+		sdio_claim_irq(sdiodev->func[0], aicwf_sdio_hal_irqhandler);
+		//enable sdio interrupt
+		ret = aicwf_sdio_writeb(sdiodev->func[0], SDIOWIFI_INTR_CONFIG_REG, 0x07);
+		if (ret != 0)
+			sdio_err("intr register failed:%d\n", ret);
+		sdio_release_host(sdiodev->func[0]);
+	} else if (aicbsp_info.chipinfo->chipid == PRODUCT_ID_AIC8800DC) {
+		sdio_claim_host(sdiodev->func[0]);
 
-	if (ret != 0)
-		sdio_err("intr register failed:%d\n", ret);
+		//since we have func2 we don't register irq handler
+		sdio_claim_irq(sdiodev->func[0], NULL);
+		sdio_claim_irq(sdiodev->func[1], NULL);
+
+		sdiodev->func[0]->irq_handler = (sdio_irq_handler_t *)aicwf_sdio_hal_irqhandler;
+		sdiodev->func[1]->irq_handler = (sdio_irq_handler_t *)aicwf_sdio_hal_irqhandler_func2;
+		sdio_release_host(sdiodev->func[0]);
+
+		//enable sdio interrupt
+		ret = aicwf_sdio_writeb(sdiodev->func[0], SDIOWIFI_INTR_CONFIG_REG, 0x07);
+
+		if (ret != 0)
+			sdio_err("intr register failed:%d\n", ret);
+
+		//enable sdio interrupt
+		ret = aicwf_sdio_writeb(sdiodev->func[1], SDIOWIFI_INTR_CONFIG_REG, 0x07);
+
+		if (ret != 0)
+			sdio_err("func2 intr register failed:%d\n", ret);
+	}
 
 	bus_if->state = BUS_UP_ST;
 
@@ -1068,10 +1191,10 @@ void aicwf_sdio_hal_irqhandler(struct sdio_func *func)
 		return;
 	}
 
-	ret = aicwf_sdio_readb(sdiodev, SDIOWIFI_BLOCK_CNT_REG, &intstatus);
+	ret = aicwf_sdio_readb(sdiodev->func[0], SDIOWIFI_BLOCK_CNT_REG, &intstatus);
 	while (ret || (intstatus & SDIO_OTHER_INTERRUPT)) {
 		sdio_err("ret=%d, intstatus=%x\r\n", ret, intstatus);
-		ret = aicwf_sdio_readb(sdiodev, SDIOWIFI_BLOCK_CNT_REG, &intstatus);
+		ret = aicwf_sdio_readb(sdiodev->func[0], SDIOWIFI_BLOCK_CNT_REG, &intstatus);
 	}
 	sdiodev->rx_priv->data_len = intstatus * SDIOWIFI_FUNC_BLOCKSIZE;
 
@@ -1085,6 +1208,52 @@ void aicwf_sdio_hal_irqhandler(struct sdio_func *func)
 		}
 	} else {
 		sdio_err("Interrupt but no data\n");
+	}
+
+	if (pkt)
+		aicwf_sdio_enq_rxpkt(sdiodev, pkt);
+
+	complete(&bus_if->busrx_trgg);
+}
+
+void aicwf_sdio_hal_irqhandler_func2(struct sdio_func *func)
+{
+	struct aicwf_bus *bus_if = aicbsp_sdiodev->bus_if;
+	struct aic_sdio_dev *sdiodev = aicbsp_sdiodev;
+	u8 intstatus = 0;
+	u8 byte_len = 0;
+	struct sk_buff *pkt = NULL;
+	int ret;
+
+	if (!bus_if || bus_if->state == BUS_DOWN_ST) {
+		if (!bus_if)
+			sdio_err("bus if none\n");
+		else
+			sdio_err("bus state down\n");
+		sdio_err("bus err\n");
+		return;
+	}
+
+	ret = aicwf_sdio_readb(sdiodev->func[1], SDIOWIFI_BLOCK_CNT_REG, &intstatus);
+
+	while (ret || (intstatus & SDIO_OTHER_INTERRUPT)) {
+		sdio_err("ret=%d, intstatus=%x\r\n", ret, intstatus);
+		ret = aicwf_sdio_readb(sdiodev->func[0], SDIOWIFI_BLOCK_CNT_REG, &intstatus);
+	}
+	sdiodev->rx_priv->data_len = intstatus * SDIOWIFI_FUNC_BLOCKSIZE;
+	if (intstatus > 0) {
+		if (intstatus < 64) {
+			pkt = aicwf_sdio_readmessages(sdiodev);
+		} else {
+			sdio_info("byte mode len=%d\r\n", byte_len);
+
+			aicwf_sdio_intr_get_len_bytemode(sdiodev, &byte_len);//byte_len must<= 128
+			pkt = aicwf_sdio_readmessages(sdiodev);
+		}
+	} else {
+	#ifndef CONFIG_PLATFORM_ALLWINNER
+		sdio_err("Interrupt but no data\n");
+	#endif
 	}
 
 	if (pkt)
@@ -1123,20 +1292,26 @@ void aicwf_sdio_release(struct aic_sdio_dev *sdiodev)
 {
 	struct aicwf_bus *bus_if;
 	int ret = 0;
+	int funcnum = 1, i = 0;
 
 	sdio_dbg("%s\n", __func__);
 
 	bus_if = sdiodev->bus_if;
 	bus_if->state = BUS_DOWN_ST;
 
-	sdio_claim_host(sdiodev->func);
-	//disable sdio interrupt
-	ret = aicwf_sdio_writeb(sdiodev, SDIOWIFI_INTR_CONFIG_REG, 0x0);
-	if (ret < 0) {
-		sdio_err("reg:%d write failed!\n", SDIOWIFI_INTR_CONFIG_REG);
+	if (aicbsp_info.chipinfo->chipid == PRODUCT_ID_AIC8800DC)
+		funcnum = 2;
+
+	for (i = 0; i < funcnum; i++) {
+		sdio_claim_host(sdiodev->func[i]);
+		//disable sdio interrupt
+		ret = aicwf_sdio_writeb(sdiodev->func[i], SDIOWIFI_INTR_CONFIG_REG, 0x0);
+		if (ret < 0) {
+			sdio_err("reg:%d write failed!\n", SDIOWIFI_INTR_CONFIG_REG);
+		}
+		sdio_release_irq(sdiodev->func[i]);
+		sdio_release_host(sdiodev->func[i]);
 	}
-	sdio_release_irq(sdiodev->func);
-	sdio_release_host(sdiodev->func);
 
 	if (sdiodev->dev)
 		aicwf_bus_deinit(sdiodev->dev);
@@ -1160,25 +1335,25 @@ int aicwf_sdio_func_init(struct aic_sdio_dev *sdiodev)
 	struct aicbsp_feature_t feature;
 
 	aicbsp_get_feature(&feature);
-	host = sdiodev->func->card->host;
+	host = sdiodev->func[0]->card->host;
 
-	sdio_claim_host(sdiodev->func);
-	sdiodev->func->card->quirks |= MMC_QUIRK_LENIENT_FN0;
-	sdio_f0_writeb(sdiodev->func, feature.sdio_phase, 0x13, &ret);
+	sdio_claim_host(sdiodev->func[0]);
+	sdiodev->func[0]->card->quirks |= MMC_QUIRK_LENIENT_FN0;
+	sdio_f0_writeb(sdiodev->func[0], feature.sdio_phase, 0x13, &ret);
 	if (ret < 0) {
 		sdio_err("write func0 fail %d\n", ret);
 		return ret;
 	}
 
-	ret = sdio_set_block_size(sdiodev->func, SDIOWIFI_FUNC_BLOCKSIZE);
+	ret = sdio_set_block_size(sdiodev->func[0], SDIOWIFI_FUNC_BLOCKSIZE);
 	if (ret < 0) {
 		sdio_err("set blocksize fail %d\n", ret);
-		sdio_release_host(sdiodev->func);
+		sdio_release_host(sdiodev->func[0]);
 		return ret;
 	}
-	ret = sdio_enable_func(sdiodev->func);
+	ret = sdio_enable_func(sdiodev->func[0]);
 	if (ret < 0) {
-		sdio_release_host(sdiodev->func);
+		sdio_release_host(sdiodev->func[0]);
 		sdio_err("enable func fail %d.\n", ret);
 	}
 
@@ -1187,16 +1362,49 @@ int aicwf_sdio_func_init(struct aic_sdio_dev *sdiodev)
 		host->ops->set_ios(host, &host->ios);
 		sdio_dbg("Set SDIO Clock %d MHz\n", host->ios.clock/1000000);
 	}
-	sdio_release_host(sdiodev->func);
+	sdio_release_host(sdiodev->func[0]);
 
-	ret = aicwf_sdio_writeb(sdiodev, SDIOWIFI_REGISTER_BLOCK, block_bit0);
+	if (aicbsp_info.chipinfo->chipid == PRODUCT_ID_AIC8800DC) {
+		sdio_claim_host(sdiodev->func[1]);
+
+		//set sdio blocksize
+		ret = sdio_set_block_size(sdiodev->func[1], SDIOWIFI_FUNC_BLOCKSIZE);
+		if (ret < 0) {
+			printk("set func2 blocksize fail %d\n", ret);
+			sdio_release_host(sdiodev->func[1]);
+			return ret;
+		}
+
+		//set sdio enable func
+		ret = sdio_enable_func(sdiodev->func[1]);
+		if (ret < 0) {
+			printk("enable func2 fail %d.\n", ret);
+		}
+
+		sdio_release_host(sdiodev->func[1]);
+
+		ret = aicwf_sdio_writeb(sdiodev->func[1], SDIOWIFI_REGISTER_BLOCK, block_bit0);
+		if (ret < 0) {
+			printk("reg:%d write failed!\n", SDIOWIFI_REGISTER_BLOCK);
+			return ret;
+		}
+
+		//1: no byte mode
+		ret = aicwf_sdio_writeb(sdiodev->func[1], SDIOWIFI_BYTEMODE_ENABLE_REG, byte_mode_disable);
+		if (ret < 0) {
+			printk("reg:%d write failed!\n", SDIOWIFI_BYTEMODE_ENABLE_REG);
+			return ret;
+		}
+	}
+
+	ret = aicwf_sdio_writeb(sdiodev->func[0], SDIOWIFI_REGISTER_BLOCK, block_bit0);
 	if (ret < 0) {
 		sdio_err("reg:%d write failed!\n", SDIOWIFI_REGISTER_BLOCK);
 		return ret;
 	}
 
 	//1: no byte mode
-	ret = aicwf_sdio_writeb(sdiodev, SDIOWIFI_BYTEMODE_ENABLE_REG, byte_mode_disable);
+	ret = aicwf_sdio_writeb(sdiodev->func[0], SDIOWIFI_BYTEMODE_ENABLE_REG, byte_mode_disable);
 	if (ret < 0) {
 		sdio_err("reg:%d write failed!\n", SDIOWIFI_BYTEMODE_ENABLE_REG);
 		return ret;
@@ -1208,9 +1416,9 @@ int aicwf_sdio_func_init(struct aic_sdio_dev *sdiodev)
 
 void aicwf_sdio_func_deinit(struct aic_sdio_dev *sdiodev)
 {
-	sdio_claim_host(sdiodev->func);
-	sdio_disable_func(sdiodev->func);
-	sdio_release_host(sdiodev->func);
+	sdio_claim_host(sdiodev->func[0]);
+	sdio_disable_func(sdiodev->func[0]);
+	sdio_release_host(sdiodev->func[0]);
 }
 
 void *aicwf_sdio_bus_init(struct aic_sdio_dev *sdiodev)

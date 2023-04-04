@@ -18,7 +18,7 @@
 #define __SUNXI_MACH_SUNXI_CHIP_H
 
 #include <linux/types.h>
-
+#include <linux/errno.h>
 
 /* The key info in Efuse */
 
@@ -78,7 +78,7 @@
 		sunxi_efuse_readn(key_name, read_buf, 1024)
 
 /* The interface functions */
-
+#if IS_ENABLED(CONFIG_SUNXI_SID)
 unsigned int sunxi_get_soc_ver(void);
 int sunxi_get_soc_chipid(unsigned char *chipid);
 int sunxi_get_soc_chipid_str(char *chipid);
@@ -87,8 +87,21 @@ int sunxi_get_soc_rotpk_status_str(char *status);
 int sunxi_get_pmu_chipid(unsigned char *chipid);
 int sunxi_get_serial(unsigned char *serial);
 unsigned int sunxi_get_soc_bin(void);
-int sunxi_soc_is_secure(void);
 s32 sunxi_get_platform(s8 *buf, s32 size);
 s32 sunxi_efuse_readn(s8 *key_name, void *buf, u32 n);
-
+int sunxi_get_module_param_from_sid(u32 *dst, u32 offset, u32 len);
+#else
+unsigned int __attribute__((weak)) sunxi_get_soc_ver(void) {return -ENOSYS; }
+int __attribute__((weak)) sunxi_get_soc_chipid(unsigned char *chipid) {return -ENOSYS; }
+int __attribute__((weak)) sunxi_get_soc_chipid_str(char *chipid) {return -ENOSYS; }
+int __attribute__((weak)) sunxi_get_soc_ft_zone_str(char *serial) {return -ENOSYS; }
+int __attribute__((weak)) sunxi_get_soc_rotpk_status_str(char *status) {return -ENOSYS; }
+int __attribute__((weak)) sunxi_get_pmu_chipid(unsigned char *chipid) {return -ENOSYS; }
+int __attribute__((weak)) sunxi_get_serial(unsigned char *serial) {return -ENOSYS; }
+unsigned int __attribute__((weak)) sunxi_get_soc_bin(void) {return -ENOSYS; }
+s32 __attribute__((weak)) sunxi_get_platform(s8 *buf, s32 size) {return -ENOSYS; }
+s32 __attribute__((weak)) sunxi_efuse_readn(s8 *key_name, void *buf, u32 n) {return -ENOSYS; }
+int __attribute__((weak)) sunxi_get_module_param_from_sid(u32 *dst, u32 offset, u32 len) {return -ENOSYS; }
+#endif
+int sunxi_soc_is_secure(void);
 #endif  /* __SUNXI_MACH_SUNXI_CHIP_H */

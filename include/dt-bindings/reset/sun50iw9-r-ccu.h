@@ -8,7 +8,6 @@
 
 #define RST_R_APB1_TWD		0
 #define RST_R_APB2_I2C		1
-#define RST_R_APB2_CAN		2
 #define RST_R_APB1_BUS_IR	3
 
 #endif /* _DT_BINDINGS_RST_SUN50IW9_R_CCU_H_ */

@@ -41,7 +41,9 @@ void rwnx_set_traffic_status(struct rwnx_hw *rwnx_hw,
 	} else {
 		bool uapsd = (ps_id != LEGACY_PS_ID);
 		rwnx_send_me_traffic_ind(rwnx_hw, sta->sta_idx, uapsd, available);
+#ifdef CREATE_TRACE_POINTS
 		trace_ps_traffic_update(sta->sta_idx, available, uapsd);
+#endif
 	}
 }
 
@@ -76,8 +78,9 @@ void rwnx_ps_bh_enable(struct rwnx_hw *rwnx_hw, struct rwnx_sta *sta,
 	struct rwnx_txq *txq;
 
 	if (enable) {
+#ifdef CREATE_TRACE_POINTS
 		trace_ps_enable(sta);
-
+#endif
 		spin_lock_bh(&rwnx_hw->tx_lock);
 		sta->ps.active = true;
 		sta->ps.sp_cnt[LEGACY_PS_ID] = 0;
@@ -100,14 +103,15 @@ void rwnx_ps_bh_enable(struct rwnx_hw *rwnx_hw, struct rwnx_sta *sta,
 
 		spin_unlock_bh(&rwnx_hw->tx_lock);
 
-		if (sta->ps.pkt_ready[LEGACY_PS_ID])
+		/*if (sta->ps.pkt_ready[LEGACY_PS_ID])
 			rwnx_set_traffic_status(rwnx_hw, sta, true, LEGACY_PS_ID);
 
 		if (sta->ps.pkt_ready[UAPSD_ID])
-			rwnx_set_traffic_status(rwnx_hw, sta, true, UAPSD_ID);
+			rwnx_set_traffic_status(rwnx_hw, sta, true, UAPSD_ID);*/
 	} else {
+#ifdef CREATE_TRACE_POINTS
 		trace_ps_disable(sta->sta_idx);
-
+#endif
 		spin_lock_bh(&rwnx_hw->tx_lock);
 		sta->ps.active = false;
 
@@ -125,11 +129,11 @@ void rwnx_ps_bh_enable(struct rwnx_hw *rwnx_hw, struct rwnx_sta *sta,
 		rwnx_txq_sta_start(sta, RWNX_TXQ_STOP_STA_PS, rwnx_hw);
 		spin_unlock_bh(&rwnx_hw->tx_lock);
 
-		if (sta->ps.pkt_ready[LEGACY_PS_ID])
+		/*if (sta->ps.pkt_ready[LEGACY_PS_ID])
 			rwnx_set_traffic_status(rwnx_hw, sta, false, LEGACY_PS_ID);
 
 		if (sta->ps.pkt_ready[UAPSD_ID])
-			rwnx_set_traffic_status(rwnx_hw, sta, false, UAPSD_ID);
+			rwnx_set_traffic_status(rwnx_hw, sta, false, UAPSD_ID);*/
 
 		tasklet_schedule(&rwnx_hw->task);
 	}
@@ -168,9 +172,9 @@ void rwnx_ps_bh_traffic_req(struct rwnx_hw *rwnx_hw, struct rwnx_sta *sta,
 	printk("sta %pM is not in Power Save mode", sta->mac_addr);
 		return;
 	}
-
+#ifdef CREATE_TRACE_POINTS
 	trace_ps_traffic_req(sta, pkt_req, ps_id);
-
+#endif
 	spin_lock_bh(&rwnx_hw->tx_lock);
 
 	/* Fw may ask to stop a service period with PS_SP_INTERRUPTED. This only
@@ -446,9 +450,9 @@ static inline void rwnx_set_more_data_flag(struct rwnx_hw *rwnx_hw,
 	if (unlikely(sta->ps.active)) {
 		sta->ps.pkt_ready[txq->ps_id]--;
 		sta->ps.sp_cnt[txq->ps_id]--;
-
+#ifdef CREATE_TRACE_POINTS
 		trace_ps_push(sta);
-
+#endif
 		if (((txq->ps_id == UAPSD_ID) || (vif->wdev.iftype == NL80211_IFTYPE_MESH_POINT) || (sta->tdls.active))
 				&& !sta->ps.sp_cnt[txq->ps_id]) {
 			sw_txhdr->desc.host.flags |= TXU_CNTRL_EOSP;
@@ -578,7 +582,8 @@ void rwnx_tx_push(struct rwnx_hw *rwnx_hw, struct rwnx_txhdr *txhdr, int flags)
 	   between queue and push (because of PS) */
 	sw_txhdr->hw_queue = hw_queue;
 
-	sw_txhdr->desc.host.packet_addr = hw_queue; //use packet_addr field for hw_txq
+	//sw_txhdr->desc.host.packet_addr = hw_queue; //use packet_addr field for hw_txq
+	sw_txhdr->desc.host.ac = hw_queue; //use ac field for hw_txq
 #ifdef CONFIG_RWNX_MUMIMO_TX
 	/* MU group is only selected during hwq processing */
 	sw_txhdr->desc.host.mumimo_info = txq->mumimo_info;
@@ -589,8 +594,9 @@ void rwnx_tx_push(struct rwnx_hw *rwnx_hw, struct rwnx_txhdr *txhdr, int flags)
 		/* only for AP mode */
 		rwnx_set_more_data_flag(rwnx_hw, sw_txhdr);
 	}
-
+#ifdef CREATE_TRACE_POINTS
 	trace_push_desc(skb, sw_txhdr, flags);
+#endif
 	#if 0
 	txq->credits--;
 	#endif
@@ -674,12 +680,6 @@ static void rwnx_tx_retry(struct rwnx_hw *rwnx_hw, struct sk_buff *skb,
 
 	if (!sw_retry) {
 		/* update sw desc */
-		sw_txhdr->desc.host.sn = cfm->sn;
-		sw_txhdr->desc.host.pn[0] = cfm->pn[0];
-		sw_txhdr->desc.host.pn[1] = cfm->pn[1];
-		sw_txhdr->desc.host.pn[2] = cfm->pn[2];
-		sw_txhdr->desc.host.pn[3] = cfm->pn[3];
-		sw_txhdr->desc.host.timestamp = cfm->timestamp;
 		sw_txhdr->desc.host.flags |= TXU_CNTRL_RETRY;
 
 		#ifdef CONFIG_RWNX_AMSDUS_TX
@@ -1094,7 +1094,7 @@ netdev_tx_t rwnx_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		(memcmp(desc->host.eth_dest_addr.array, rwnx_vif->sta.tdls_sta->mac_addr, ETH_ALEN) == 0)) {
 		desc->host.flags |= TXU_CNTRL_TDLS;
 		rwnx_vif->sta.tdls_sta->tdls.last_tid = desc->host.tid;
-		rwnx_vif->sta.tdls_sta->tdls.last_sn = desc->host.sn;
+		//rwnx_vif->sta.tdls_sta->tdls.last_sn = desc->host.sn;
 	}
 
 	if (rwnx_vif->wdev.iftype == NL80211_IFTYPE_MESH_POINT) {
@@ -1121,12 +1121,6 @@ netdev_tx_t rwnx_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	/* Fill-in TX descriptor */
 	frame_oft = sizeof(struct rwnx_txhdr) - offsetof(struct rwnx_txhdr, hw_hdr)
 				+ hdr_pads;// + sizeof(*eth);
-#ifdef CONFIG_RWNX_SPLIT_TX_BUF
-	desc->host.packet_addr[0] = sw_txhdr->dma_addr + frame_oft;
-	desc->host.packet_cnt = 1;
-#else
-	desc->host.packet_addr = sw_txhdr->dma_addr + frame_oft;
-#endif
 	desc->host.status_desc_addr = sw_txhdr->dma_addr;
 
 	spin_lock_bh(&rwnx_hw->tx_lock);
@@ -1311,12 +1305,6 @@ int rwnx_start_mgmt_xmit(struct rwnx_vif *vif, struct rwnx_sta *sta,
 	}
 
 	frame_oft = sizeof(struct rwnx_txhdr) - offsetof(struct rwnx_txhdr, hw_hdr);
-#ifdef CONFIG_RWNX_SPLIT_TX_BUF
-	desc->host.packet_addr[0] = sw_txhdr->dma_addr + frame_oft;
-	desc->host.packet_cnt = 1;
-#else
-	desc->host.packet_addr = sw_txhdr->dma_addr + frame_oft;
-#endif
 	desc->host.status_desc_addr = sw_txhdr->dma_addr;
 
 	//----------------------------------------------------------------------
@@ -1359,6 +1347,19 @@ int rwnx_txdatacfm(void *pthis, void *host_id)
 		return -1;
 	}
 
+#if defined(AICWF_USB_SUPPORT)
+	if (rwnx_hw->usbdev->state == USB_DOWN_ST)
+#elif defined(AICWF_SDIO_SUPPORT)
+	if (rwnx_hw->sdiodev->bus_if->state == BUS_DOWN_ST)
+#endif
+	{
+		headroom = sw_txhdr->headroom;
+		kmem_cache_free(rwnx_hw->sw_txhdr_cache, sw_txhdr);
+		skb_pull(skb, headroom);
+		consume_skb(skb);
+		return 0;
+	}
+
 	txq = sw_txhdr->txq;
 	/* don't use txq->hwq as it may have changed between push and confirm */
 	hwq = &rwnx_hw->hwq[sw_txhdr->hw_queue];
@@ -1369,11 +1370,11 @@ int rwnx_txdatacfm(void *pthis, void *host_id)
 		printk("done=%d retry_required=%d sw_retry_required=%d acknowledged=%d\n",
 					 rwnx_txst.tx_done, rwnx_txst.retry_required,
 					 rwnx_txst.sw_retry_required, rwnx_txst.acknowledged);
-
+#ifdef CREATE_TRACE_POINTS
 		trace_mgmt_cfm(sw_txhdr->rwnx_vif->vif_index,
 					   (sw_txhdr->rwnx_sta) ? sw_txhdr->rwnx_sta->sta_idx : 0xFF,
 					   rwnx_txst.acknowledged);
-
+#endif
 		/* Confirm transmission to CFG80211 */
 		cfg80211_mgmt_tx_status(&sw_txhdr->rwnx_vif->wdev,
 								(unsigned long)skb,
@@ -1393,9 +1394,9 @@ int rwnx_txdatacfm(void *pthis, void *host_id)
 		rwnx_tx_retry(rwnx_hw, skb, txhdr, sw_retry);
 		return 0;
 	}
-
+#ifdef CREATE_TRACE_POINTS
 	trace_skb_confirm(skb, txq, hwq, &txhdr->hw_hdr.cfm);
-
+#endif
 	/* STA may have disconnect (and txq stopped) when buffers were stored
 	   in fw. In this case do nothing when they're returned */
 	if (txq->idx != TXQ_INACTIVE) {
@@ -1469,7 +1470,9 @@ void rwnx_txq_credit_update(struct rwnx_hw *rwnx_hw, int sta_idx, u8 tid,
 
 	if (txq->idx != TXQ_INACTIVE) {
 		//txq->credits += update;
+#ifdef CREATE_TRACE_POINTS
 		trace_credit_update(txq, update);
+#endif
 		if (txq->credits <= 0)
 			rwnx_txq_stop(txq, RWNX_TXQ_STOP_FULL);
 		else

@@ -1225,6 +1225,34 @@ static ssize_t rwnx_dbgfs_set_write(struct file *file,
 DEBUGFS_READ_WRITE_FILE_OPS(set);
 #endif /* CONFIG_RWNX_RADAR */
 
+static ssize_t rwnx_dbgfs_regdbg_write(struct file *file,
+					const char __user *user_buf,
+					size_t count, loff_t *ppos)
+{
+	struct rwnx_hw *priv = file->private_data;
+	char buf[32];
+	u32 addr, val, oper;
+	size_t len = min_t(size_t, count, sizeof(buf) - 1);
+	struct dbg_mem_read_cfm mem_read_cfm;
+	int ret;
+
+	if (copy_from_user(buf, user_buf, len))
+		return -EFAULT;
+
+	buf[len] = '\0';
+
+	if (sscanf(buf, "%x %x %x", &oper, &addr, &val) > 0)
+		printk("addr=%x, val=%x,oper=%d\n", addr, val, oper);
+
+	if (oper == 0) {
+		ret = rwnx_send_dbg_mem_read_req(priv, addr, &mem_read_cfm);
+		printk("[0x%x] = [0x%x]\n", mem_read_cfm.memaddr, mem_read_cfm.memdata);
+	}
+
+	return count;
+}
+
+DEBUGFS_WRITE_FILE_OPS(regdbg);
 #ifdef CONFIG_RWNX_FULLMAC
 
 #define LINE_MAX_SZ 150

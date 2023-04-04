@@ -427,6 +427,47 @@ int sunxi_get_serial(u8 *serial)
 EXPORT_SYMBOL(sunxi_get_serial);
 
 /**
+ * get module_param:
+ * argc[0]---dst buf
+ * argc[1]---the sid offset
+ * argc[2]---len(btye)
+ */
+int sunxi_get_module_param_from_sid(u32 *dst, u32 offset, u32 len)
+{
+	void __iomem *baseaddr = NULL;
+	struct device_node *dev_node = NULL;
+	int i;
+
+	if (dst == NULL) {
+		pr_err("the dst buf is NULL\n");
+		return -1;
+	}
+
+	if (len & 0x3) {
+		pr_err("the len must be word algin\n");
+		return -2;
+	}
+
+	if (sid_get_base(&dev_node, &baseaddr, EFUSE_SID_BASE, 0)) {
+		pr_err("sid_get_base fail \n");
+		return 0;
+	}
+
+	SID_DBG("baseaddr: 0x%p offset:0x%x len(word):0x%x\n", baseaddr, offset, len);
+
+	for (i = 0; i < len; i += 4) {
+		dst[i] = sid_readl(baseaddr + 0x200 + offset + i, 0);
+	}
+
+	sid_put_base(dev_node, baseaddr, 0);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(sunxi_get_module_param_from_sid);
+
+
+
+/**
  * soc chipid str:
  */
 int sunxi_get_soc_chipid_str(char *serial)

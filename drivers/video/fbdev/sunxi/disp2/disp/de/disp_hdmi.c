@@ -213,6 +213,7 @@ static s32 hdmi_clk_enable(struct disp_device *hdmi)
 
 static s32 hdmi_clk_disable(struct disp_device *hdmi)
 {
+#ifndef USE_CEC_DDC_PAD
 	struct disp_device_private_data *hdmip = disp_hdmi_get_priv(hdmi);
 
 	if (!hdmi || !hdmip) {
@@ -231,7 +232,7 @@ static s32 hdmi_clk_disable(struct disp_device *hdmi)
 			pr_err("[%s] assert bus clk failed!\n", __func__);
 			return DIS_FAIL;
 	}
-
+#endif
 	return 0;
 }
 

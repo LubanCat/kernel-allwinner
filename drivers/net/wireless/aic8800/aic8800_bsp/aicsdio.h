@@ -49,7 +49,7 @@ typedef enum {
 
 struct aic_sdio_dev {
 	struct rwnx_cmd_mgr cmd_mgr;
-	struct sdio_func *func;
+	struct sdio_func *func[2];
 	struct device *dev;
 	struct aicwf_bus *bus_if;
 
@@ -67,8 +67,9 @@ struct aic_sdio_dev {
 };
 
 void *aicbsp_get_drvdata(void *args);
-int aicwf_sdio_writeb(struct aic_sdio_dev *sdiodev, uint regaddr, u8 val);
+int aicwf_sdio_writeb(struct sdio_func *func, uint regaddr, u8 val);
 void aicwf_sdio_hal_irqhandler(struct sdio_func *func);
+void aicwf_sdio_hal_irqhandler_func2(struct sdio_func *func);
 void aicwf_sdio_pwrctl_timer(struct aic_sdio_dev *sdiodev, uint duration);
 int aicwf_sdio_pwr_stctl(struct  aic_sdio_dev *sdiodev, uint target);
 int aicwf_sdio_func_init(struct aic_sdio_dev *sdiodev);

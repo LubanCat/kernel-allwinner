@@ -33,7 +33,7 @@ struct rwnx_mod_params rwnx_mod_params = {
 	COMMON_PARAM(vht_on, true, true)
 	COMMON_PARAM(he_on, true, true)
 	COMMON_PARAM(mcs_map, IEEE80211_VHT_MCS_SUPPORT_0_9, IEEE80211_VHT_MCS_SUPPORT_0_9)
-	COMMON_PARAM(he_mcs_map, IEEE80211_HE_MCS_SUPPORT_0_9, IEEE80211_HE_MCS_SUPPORT_0_9)
+	COMMON_PARAM(he_mcs_map, IEEE80211_HE_MCS_SUPPORT_0_11, IEEE80211_HE_MCS_SUPPORT_0_11)
 	COMMON_PARAM(he_ul_on, false, false)
 	COMMON_PARAM(ldpc_on, true, true)
 	COMMON_PARAM(stbc_on, true, true)
@@ -973,9 +973,15 @@ static void rwnx_set_he_capa(struct rwnx_hw *rwnx_hw, struct wiphy *wiphy)
 	#endif
 	if (rwnx_hw->mod_params->stbc_on)
 		he_cap->he_cap_elem.phy_cap_info[2] |= IEEE80211_HE_PHY_CAP2_STBC_RX_UNDER_80MHZ;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0)
+	he_cap->he_cap_elem.phy_cap_info[3] |= IEEE80211_HE_PHY_CAP3_DCM_MAX_CONST_RX_16_QAM |
+										   IEEE80211_HE_PHY_CAP3_DCM_MAX_RX_NSS_1 |
+										   IEEE80211_HE_PHY_CAP3_RX_PARTIAL_BW_SU_IN_20MHZ_MU;
+#else
 	he_cap->he_cap_elem.phy_cap_info[3] |= IEEE80211_HE_PHY_CAP3_DCM_MAX_CONST_RX_16_QAM |
 										   IEEE80211_HE_PHY_CAP3_DCM_MAX_RX_NSS_1 |
 										   IEEE80211_HE_PHY_CAP3_RX_HE_MU_PPDU_FROM_NON_AP_STA;
+#endif
 	if (rwnx_hw->mod_params->bfmee) {
 		he_cap->he_cap_elem.phy_cap_info[4] |= IEEE80211_HE_PHY_CAP4_SU_BEAMFORMEE;
 		he_cap->he_cap_elem.phy_cap_info[4] |=
@@ -983,12 +989,21 @@ static void rwnx_set_he_capa(struct rwnx_hw *rwnx_hw, struct wiphy *wiphy)
 	}
 	he_cap->he_cap_elem.phy_cap_info[5] |= IEEE80211_HE_PHY_CAP5_NG16_SU_FEEDBACK |
 										   IEEE80211_HE_PHY_CAP5_NG16_MU_FEEDBACK;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0)
+	he_cap->he_cap_elem.phy_cap_info[6] |= IEEE80211_HE_PHY_CAP6_CODEBOOK_SIZE_42_SU |
+										   IEEE80211_HE_PHY_CAP6_CODEBOOK_SIZE_75_MU |
+										   IEEE80211_HE_PHY_CAP6_TRIG_SU_BEAMFORMING_FB |
+										   IEEE80211_HE_PHY_CAP6_TRIG_MU_BEAMFORMING_PARTIAL_BW_FB |
+										   IEEE80211_HE_PHY_CAP6_PPE_THRESHOLD_PRESENT |
+										   IEEE80211_HE_PHY_CAP6_PARTIAL_BANDWIDTH_DL_MUMIMO;
+#else
 	he_cap->he_cap_elem.phy_cap_info[6] |= IEEE80211_HE_PHY_CAP6_CODEBOOK_SIZE_42_SU |
 										   IEEE80211_HE_PHY_CAP6_CODEBOOK_SIZE_75_MU |
 										   IEEE80211_HE_PHY_CAP6_TRIG_SU_BEAMFORMER_FB |
 										   IEEE80211_HE_PHY_CAP6_TRIG_MU_BEAMFORMER_FB |
 										   IEEE80211_HE_PHY_CAP6_PPE_THRESHOLD_PRESENT |
 										   IEEE80211_HE_PHY_CAP6_PARTIAL_BANDWIDTH_DL_MUMIMO;
+#endif
 	he_cap->he_cap_elem.phy_cap_info[7] |= IEEE80211_HE_PHY_CAP7_HE_SU_MU_PPDU_4XLTF_AND_08_US_GI;
 	he_cap->he_cap_elem.phy_cap_info[8] |= IEEE80211_HE_PHY_CAP8_20MHZ_IN_40MHZ_HE_PPDU_IN_2G;
 	#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
@@ -1062,9 +1077,15 @@ static void rwnx_set_he_capa(struct rwnx_hw *rwnx_hw, struct wiphy *wiphy)
 		#endif
 		if (rwnx_hw->mod_params->stbc_on)
 			he_cap->he_cap_elem.phy_cap_info[2] |= IEEE80211_HE_PHY_CAP2_STBC_RX_UNDER_80MHZ;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0)
+		he_cap->he_cap_elem.phy_cap_info[3] |= IEEE80211_HE_PHY_CAP3_DCM_MAX_CONST_RX_16_QAM |
+											   IEEE80211_HE_PHY_CAP3_DCM_MAX_RX_NSS_1 |
+											   IEEE80211_HE_PHY_CAP3_RX_PARTIAL_BW_SU_IN_20MHZ_MU;
+#else
 		he_cap->he_cap_elem.phy_cap_info[3] |= IEEE80211_HE_PHY_CAP3_DCM_MAX_CONST_RX_16_QAM |
 											   IEEE80211_HE_PHY_CAP3_DCM_MAX_RX_NSS_1 |
 											   IEEE80211_HE_PHY_CAP3_RX_HE_MU_PPDU_FROM_NON_AP_STA;
+#endif
 		if (rwnx_hw->mod_params->bfmee) {
 			he_cap->he_cap_elem.phy_cap_info[4] |= IEEE80211_HE_PHY_CAP4_SU_BEAMFORMEE;
 			he_cap->he_cap_elem.phy_cap_info[4] |=
@@ -1072,12 +1093,21 @@ static void rwnx_set_he_capa(struct rwnx_hw *rwnx_hw, struct wiphy *wiphy)
 		}
 		he_cap->he_cap_elem.phy_cap_info[5] |= IEEE80211_HE_PHY_CAP5_NG16_SU_FEEDBACK |
 											   IEEE80211_HE_PHY_CAP5_NG16_MU_FEEDBACK;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0)
+		he_cap->he_cap_elem.phy_cap_info[6] |= IEEE80211_HE_PHY_CAP6_CODEBOOK_SIZE_42_SU |
+											   IEEE80211_HE_PHY_CAP6_CODEBOOK_SIZE_75_MU |
+											   IEEE80211_HE_PHY_CAP6_TRIG_SU_BEAMFORMING_FB |
+											   IEEE80211_HE_PHY_CAP6_TRIG_MU_BEAMFORMING_PARTIAL_BW_FB |
+											   IEEE80211_HE_PHY_CAP6_PPE_THRESHOLD_PRESENT |
+											   IEEE80211_HE_PHY_CAP6_PARTIAL_BANDWIDTH_DL_MUMIMO;
+#else
 		he_cap->he_cap_elem.phy_cap_info[6] |= IEEE80211_HE_PHY_CAP6_CODEBOOK_SIZE_42_SU |
 											   IEEE80211_HE_PHY_CAP6_CODEBOOK_SIZE_75_MU |
 											   IEEE80211_HE_PHY_CAP6_TRIG_SU_BEAMFORMER_FB |
 											   IEEE80211_HE_PHY_CAP6_TRIG_MU_BEAMFORMER_FB |
 											   IEEE80211_HE_PHY_CAP6_PPE_THRESHOLD_PRESENT |
 											   IEEE80211_HE_PHY_CAP6_PARTIAL_BANDWIDTH_DL_MUMIMO;
+#endif
 		he_cap->he_cap_elem.phy_cap_info[7] |= IEEE80211_HE_PHY_CAP7_HE_SU_MU_PPDU_4XLTF_AND_08_US_GI;
 		he_cap->he_cap_elem.phy_cap_info[8] |= IEEE80211_HE_PHY_CAP8_20MHZ_IN_40MHZ_HE_PPDU_IN_2G;
 		#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)

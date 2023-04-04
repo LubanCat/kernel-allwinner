@@ -319,7 +319,6 @@ static __s32 usb_script_parse(struct device_node *np, struct usb_cfg *cfg)
 		}
 	}
 
-
 	/* usbc det type */
 	ret = of_property_read_u32(usbc_np,
 					KEY_USB_DET_TYPE,
@@ -329,26 +328,30 @@ static __s32 usb_script_parse(struct device_node *np, struct usb_cfg *cfg)
 	}
 
 	/* usbc id  */
-	ret = of_property_read_string(usbc_np,
-					KEY_USB_ID_GPIO,
-					&cfg->port.id_name);
-	if (ret) {
-		DMSG_INFO("get id is fail, %d\n", ret);
-		cfg->port.id.valid = 0;
-	} else {
-		if (strncmp(cfg->port.id_name, "axp_ctrl", 8) == 0) {
-			cfg->port.id_type = USB_ID_TYPE_AXP;
+	if (cfg->port.detect_type == USB_DETECT_TYPE_VBUS_ID) {
+		ret = of_property_read_string(usbc_np,
+						KEY_USB_ID_GPIO,
+						&cfg->port.id_name);
+		if (ret) {
+			DMSG_INFO("get id is fail, %d\n", ret);
 			cfg->port.id.valid = 0;
 		} else {
-			/*get id gpio */
-			cfg->port.id.gpio = of_get_named_gpio(usbc_np, KEY_USB_ID_GPIO, 0);
-			if (gpio_is_valid(cfg->port.id.gpio)) {
-				cfg->port.id.valid = 1;
-				cfg->port.id_type = USB_ID_TYPE_GPIO;
-			} else {
+			if (strncmp(cfg->port.id_name, "axp_ctrl", 8) == 0) {
+				cfg->port.id_type = USB_ID_TYPE_AXP;
 				cfg->port.id.valid = 0;
+			} else {
+				/*get id gpio */
+				cfg->port.id.gpio = of_get_named_gpio(usbc_np, KEY_USB_ID_GPIO, 0);
+				if (gpio_is_valid(cfg->port.id.gpio)) {
+					cfg->port.id.valid = 1;
+					cfg->port.id_type = USB_ID_TYPE_GPIO;
+				} else {
+					cfg->port.id.valid = 0;
+				}
 			}
 		}
+	} else {
+		cfg->port.id.valid = 0;
 	}
 
 	return 0;
@@ -537,6 +540,7 @@ static int sunxi_otg_manager_remove(struct platform_device *pdev)
 #endif
 
 		thread_run_flag = 0;
+		thread_pmu_run_flag = 0;
 		while (!thread_stopped_flag) {
 			DMSG_INFO("waitting for usb_hardware_scan_thread stop\n");
 			msleep(20);

@@ -45,7 +45,7 @@ static int rwnx_freq_to_idx(struct rwnx_hw *rwnx_hw, int freq)
 		}
 	}
 
-	BUG_ON(1);
+	WARN_ON(1);
 
 exit:
 	// Channel has been found, return the index
@@ -218,8 +218,9 @@ static inline int rwnx_rx_remain_on_channel_exp_ind(struct rwnx_hw *rwnx_hw,
 
 	rwnx_vif = container_of(roc_elem->wdev, struct rwnx_vif, wdev);
 	/* For debug purpose (use ftrace kernel option) */
+#ifdef CREATE_TRACE_POINTS
 	trace_roc_exp(rwnx_vif->vif_index);
-
+#endif
 	/* If mgmt_roc is true, remain on channel has been started by ourself */
 	/* If RoC has been cancelled before we switched on channel, do not call cfg80211 */
 	if (!roc_elem->mgmt_roc && roc_elem->on_chan) {
@@ -506,7 +507,7 @@ static inline int rwnx_rx_ps_change_ind(struct rwnx_hw *rwnx_hw,
 	} else if (rwnx_hw->adding_sta) {
 		sta->ps.active = ind->ps_state ? true : false;
 	} else {
-		if (rwnx_hw->vif_table[sta->vif_idx]->ndev)
+		if (rwnx_hw->vif_table[sta->vif_idx] && rwnx_hw->vif_table[sta->vif_idx]->ndev)
 			netdev_err(rwnx_hw->vif_table[sta->vif_idx]->ndev,
 				   "Ignore PS mode change on invalid sta\n");
 	}
@@ -572,7 +573,6 @@ static inline int rwnx_rx_scanu_start_cfm(struct rwnx_hw *rwnx_hw,
 {
 	RWNX_DBG(RWNX_FN_ENTRY_STR);
 
-	scanning = 0;
 	if (rwnx_hw->scan_request) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
 		struct cfg80211_scan_info info = {
@@ -586,6 +586,7 @@ static inline int rwnx_rx_scanu_start_cfm(struct rwnx_hw *rwnx_hw,
 	}
 
 	rwnx_hw->scan_request = NULL;
+	scanning = 0;
 
 	return 0;
 }
@@ -633,7 +634,7 @@ static inline int rwnx_rx_scanu_result_ind(struct rwnx_hw *rwnx_hw,
 				CFG80211_BSS_FTYPE_UNKNOWN,
 #endif
 				mgmt->bssid, tsf, capability, beacon_interval,
-				ie, ielen, ind->rssi * 100, GFP_KERNEL);
+				ie, ielen, ind->rssi * 100, GFP_ATOMIC);
 	}
 
 	if (bss != NULL)
@@ -842,7 +843,7 @@ static inline int rwnx_rx_sm_disconnect_ind(struct rwnx_hw *rwnx_hw,
 {
 	struct sm_disconnect_ind *ind = (struct sm_disconnect_ind *)msg->param;
 	struct rwnx_vif *rwnx_vif = rwnx_hw->vif_table[ind->vif_idx];
-	struct net_device *dev = rwnx_vif->ndev;
+	struct net_device *dev;
 #ifdef AICWF_RX_REORDER
 	struct reord_ctrl_info *reord_info, *tmp;
 	u8 *macaddr;
@@ -851,6 +852,10 @@ static inline int rwnx_rx_sm_disconnect_ind(struct rwnx_hw *rwnx_hw,
 
 	RWNX_DBG(RWNX_FN_ENTRY_STR);
 	dhcped = 0;
+
+	if (!rwnx_vif)
+		return 0;
+	dev = rwnx_vif->ndev;
 
 	if (rwnx_vif->wdev.iftype == NL80211_IFTYPE_P2P_CLIENT)
 		rwnx_hw->is_p2p_connected = 0;
@@ -879,7 +884,7 @@ static inline int rwnx_rx_sm_disconnect_ind(struct rwnx_hw *rwnx_hw,
 		macaddr = rwnx_vif->ndev->dev_addr;
 		printk("deinit:macaddr:%x,%x,%x,%x,%x,%x\r\n", macaddr[0], macaddr[1], macaddr[2], \
 							   macaddr[3], macaddr[4], macaddr[5]);
-
+		spin_lock_bh(&rx_priv->stas_reord_lock);
 		list_for_each_entry_safe(reord_info, tmp, &rx_priv->stas_reord_list, list) {
 			macaddr = rwnx_vif->ndev->dev_addr;
 			printk("reord_mac:%x,%x,%x,%x,%x,%x\r\n", reord_info->mac_addr[0], reord_info->mac_addr[1], reord_info->mac_addr[2], \
@@ -889,6 +894,7 @@ static inline int rwnx_rx_sm_disconnect_ind(struct rwnx_hw *rwnx_hw,
 				break;
 			}
 		}
+		spin_unlock_bh(&rx_priv->stas_reord_lock);
 	} else if ((rwnx_vif->wdev.iftype == NL80211_IFTYPE_AP) || (rwnx_vif->wdev.iftype == NL80211_IFTYPE_P2P_GO)) {
 		BUG();//should be not here: del_sta function
 	}
@@ -914,7 +920,7 @@ static inline int rwnx_rx_sm_external_auth_required_ind(struct rwnx_hw *rwnx_hw,
 	struct sm_external_auth_required_ind *ind =
 		(struct sm_external_auth_required_ind *)msg->param;
 	struct rwnx_vif *rwnx_vif = rwnx_hw->vif_table[ind->vif_idx];
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0) || defined(CONFIG_WPA3_FOR_OLD_KERNEL)
 	struct net_device *dev = rwnx_vif->ndev;
 	struct cfg80211_external_auth_params params;
 
@@ -1090,7 +1096,9 @@ static inline int rwnx_rx_mesh_path_update_ind(struct rwnx_hw *rwnx_hw,
 	/* Check if element has been deleted */
 	if (ind->delete) {
 		if (found) {
+#ifdef CREATE_TRACE_POINTS
 			trace_mesh_delete_path(mesh_path);
+#endif
 			/* Remove element from list */
 			list_del_init(&mesh_path->list);
 			/* Free the element */
@@ -1100,7 +1108,9 @@ static inline int rwnx_rx_mesh_path_update_ind(struct rwnx_hw *rwnx_hw,
 		if (found) {
 			// Update the Next Hop STA
 			mesh_path->p_nhop_sta = &rwnx_hw->sta_table[ind->nhop_sta_idx];
+#ifdef CREATE_TRACE_POINTS
 			trace_mesh_update_path(mesh_path);
+#endif
 		} else {
 			// Allocate a Mesh Path structure
 			mesh_path = (struct rwnx_mesh_path *)kmalloc(sizeof(struct rwnx_mesh_path), GFP_ATOMIC);
@@ -1114,8 +1124,9 @@ static inline int rwnx_rx_mesh_path_update_ind(struct rwnx_hw *rwnx_hw,
 
 				// Insert the path in the list of path
 				list_add_tail(&mesh_path->list, &rwnx_vif->ap.mpath_list);
-
+#ifdef CREATE_TRACE_POINTS
 				trace_mesh_create_path(mesh_path);
+#endif
 			}
 		}
 	}

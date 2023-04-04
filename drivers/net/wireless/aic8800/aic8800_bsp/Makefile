@@ -10,6 +10,8 @@ obj-m := aic8800_bsp.o
 aic8800_bsp-y := \
 	aic_bsp_main.o \
 	aic_bsp_driver.o \
+	aic_bsp_8800d.o \
+	aic_bsp_8800dc.o \
 	aicsdio.o \
 	aicsdio_txrxif.o
 

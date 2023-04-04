@@ -137,15 +137,15 @@ void rwnx_txq_flush(struct rwnx_hw *rwnx_hw, struct rwnx_txq *txq)
 		if (sw_txhdr->desc.host.packet_cnt > 1) {
 			struct rwnx_amsdu_txhdr *amsdu_txhdr;
 			list_for_each_entry(amsdu_txhdr, &sw_txhdr->amsdu.hdrs, list) {
-				dma_unmap_single(rwnx_hw->dev, amsdu_txhdr->dma_addr,
-								 amsdu_txhdr->map_len, DMA_TO_DEVICE);
+				//dma_unmap_single(rwnx_hw->dev, amsdu_txhdr->dma_addr,
+				//				 amsdu_txhdr->map_len, DMA_TO_DEVICE);
 				dev_kfree_skb_any(amsdu_txhdr->skb);
 			}
 		}
 #endif
 		kmem_cache_free(rwnx_hw->sw_txhdr_cache, sw_txhdr);
-		dma_unmap_single(rwnx_hw->dev, sw_txhdr->dma_addr, sw_txhdr->map_len,
-						 DMA_TO_DEVICE);
+		//dma_unmap_single(rwnx_hw->dev, sw_txhdr->dma_addr, sw_txhdr->map_len,
+		//				 DMA_TO_DEVICE);
 
 #ifdef CONFIG_RWNX_FULLMAC
 	dev_kfree_skb_any(skb);
@@ -384,7 +384,9 @@ void rwnx_txq_tdls_vif_deinit(struct rwnx_vif *rwnx_vif)
 void rwnx_txq_add_to_hw_list(struct rwnx_txq *txq)
 {
 	if (!(txq->status & RWNX_TXQ_IN_HWQ_LIST)) {
+#ifdef CREATE_TRACE_POINTS
 		trace_txq_add_to_hw(txq);
+#endif
 		txq->status |= RWNX_TXQ_IN_HWQ_LIST;
 		list_add_tail(&txq->sched_list, &txq->hwq->list);
 		txq->hwq->need_processing = true;
@@ -402,7 +404,9 @@ void rwnx_txq_add_to_hw_list(struct rwnx_txq *txq)
 void rwnx_txq_del_from_hw_list(struct rwnx_txq *txq)
 {
 	if (txq->status & RWNX_TXQ_IN_HWQ_LIST) {
+#ifdef CREATE_TRACE_POINTS
 		trace_txq_del_from_hw(txq);
+#endif
 		txq->status &= ~RWNX_TXQ_IN_HWQ_LIST;
 		list_del(&txq->sched_list);
 	}
@@ -440,7 +444,9 @@ void rwnx_txq_start(struct rwnx_txq *txq, u16 reason)
 {
 	BUG_ON(txq == NULL);
 	if (txq->idx != TXQ_INACTIVE && (txq->status & reason)) {
+#ifdef CREATE_TRACE_POINTS
 		trace_txq_start(txq, reason);
+#endif
 		txq->status &= ~reason;
 		if (!rwnx_txq_is_stopped(txq) && rwnx_txq_skb_ready(txq))
 			rwnx_txq_add_to_hw_list(txq);
@@ -460,7 +466,9 @@ void rwnx_txq_stop(struct rwnx_txq *txq, u16 reason)
 {
 	BUG_ON(txq == NULL);
 	if (txq->idx != TXQ_INACTIVE) {
+#ifdef CREATE_TRACE_POINTS
 		trace_txq_stop(txq, reason);
+#endif
 		txq->status |= reason;
 		rwnx_txq_del_from_hw_list(txq);
 	}
@@ -492,8 +500,9 @@ void rwnx_txq_sta_start(struct rwnx_sta *rwnx_sta, u16 reason
 {
 	struct rwnx_txq *txq;
 	int tid;
-
+#ifdef CREATE_TRACE_POINTS
 	trace_txq_sta_start(rwnx_sta->sta_idx);
+#endif
 
 	foreach_sta_txq(rwnx_sta, txq, tid, rwnx_hw) {
 		rwnx_txq_start(txq, reason);
@@ -528,8 +537,9 @@ void rwnx_txq_sta_stop(struct rwnx_sta *rwnx_sta, u16 reason
 
 	if (!rwnx_sta)
 		return;
-
+#ifdef CREATE_TRACE_POINTS
 	trace_txq_sta_stop(rwnx_sta->sta_idx);
+#endif
 	foreach_sta_txq(rwnx_sta, txq, tid, rwnx_hw) {
 		rwnx_txq_stop(txq, reason);
 	}
@@ -539,7 +549,9 @@ void rwnx_txq_sta_stop(struct rwnx_sta *rwnx_sta, u16 reason
 void rwnx_txq_tdls_sta_start(struct rwnx_vif *rwnx_vif, u16 reason,
 				struct rwnx_hw *rwnx_hw)
 {
+#ifdef CREATE_TRACE_POINTS
 	trace_txq_vif_start(rwnx_vif->vif_index);
+#endif
 	spin_lock_bh(&rwnx_hw->tx_lock);
 
 	if (rwnx_vif->sta.tdls_sta)
@@ -553,7 +565,9 @@ void rwnx_txq_tdls_sta_start(struct rwnx_vif *rwnx_vif, u16 reason,
 void rwnx_txq_tdls_sta_stop(struct rwnx_vif *rwnx_vif, u16 reason,
 				struct rwnx_hw *rwnx_hw)
 {
+#ifdef CREATE_TRACE_POINTS
 	trace_txq_vif_stop(rwnx_vif->vif_index);
+#endif
 
 	spin_lock_bh(&rwnx_hw->tx_lock);
 
@@ -613,9 +627,9 @@ void rwnx_txq_vif_start(struct rwnx_vif *rwnx_vif, u16 reason,
 						struct rwnx_hw *rwnx_hw)
 {
 	struct rwnx_txq *txq;
-
+#ifdef CREATE_TRACE_POINTS
 	trace_txq_vif_start(rwnx_vif->vif_index);
-
+#endif
 	spin_lock_bh(&rwnx_hw->tx_lock);
 
 #ifdef CONFIG_RWNX_FULLMAC
@@ -657,8 +671,9 @@ void rwnx_txq_vif_stop(struct rwnx_vif *rwnx_vif, u16 reason,
 					   struct rwnx_hw *rwnx_hw)
 {
 	struct rwnx_txq *txq;
-
+#ifdef CREATE_TRACE_POINTS
 	trace_txq_vif_stop(rwnx_vif->vif_index);
+#endif
 	spin_lock_bh(&rwnx_hw->tx_lock);
 
 #ifdef CONFIG_RWNX_FULLMAC
@@ -758,8 +773,9 @@ int rwnx_txq_queue_skb(struct sk_buff *skb, struct rwnx_txq *txq,
 #ifdef CONFIG_RWNX_FULLMAC
 	if (unlikely(txq->sta && txq->sta->ps.active)) {
 		txq->sta->ps.pkt_ready[txq->ps_id]++;
+#ifdef CREATE_TRACE_POINTS
 		trace_ps_queue(txq->sta);
-
+#endif
 		if (txq->sta->ps.pkt_ready[txq->ps_id] == 1) {
 			rwnx_set_traffic_status(rwnx_hw, txq->sta, true, txq->ps_id);
 		}
@@ -778,9 +794,9 @@ int rwnx_txq_queue_skb(struct sk_buff *skb, struct rwnx_txq *txq,
 		txq->last_retry_skb = skb;
 		txq->nb_retry++;
 	}
-
+#ifdef CREATE_TRACE_POINTS
 	trace_txq_queue_skb(skb, txq, retry);
-
+#endif
 	/* Flowctrl corresponding netdev queue if needed */
 #ifdef CONFIG_RWNX_FULLMAC
 	/* If too many buffer are queued for this TXQ stop netdev queue */
@@ -788,7 +804,9 @@ int rwnx_txq_queue_skb(struct sk_buff *skb, struct rwnx_txq *txq,
 		(skb_queue_len(&txq->sk_list) > RWNX_NDEV_FLOW_CTRL_STOP)) {
 		txq->status |= RWNX_TXQ_NDEV_FLOW_CTRL;
 		netif_stop_subqueue(txq->ndev, txq->ndev_idx);
+#ifdef CREATE_TRACE_POINTS
 		trace_txq_flowctrl_stop(txq);
+#endif
 	}
 #else /* ! CONFIG_RWNX_FULLMAC */
 
@@ -1150,9 +1168,9 @@ void rwnx_hwq_process(struct rwnx_hw *rwnx_hw, struct rwnx_hwq *hwq)
 	struct rwnx_txq *txq, *next;
 	int user, credit_map = 0;
 	bool mu_enable;
-
+#ifdef CREATE_TRACE_POINTS
 	trace_process_hw_queue(hwq);
-
+#endif
 	hwq->need_processing = false;
 
 	mu_enable = rwnx_txq_take_mu_lock(rwnx_hw);
@@ -1164,10 +1182,15 @@ void rwnx_hwq_process(struct rwnx_hw *rwnx_hw, struct rwnx_hwq *hwq)
 		struct sk_buff_head sk_list_push;
 		struct sk_buff *skb;
 		bool txq_empty;
-
+#ifdef CREATE_TRACE_POINTS
 		trace_process_txq(txq);
+#endif
 		/* sanity check for debug */
 		BUG_ON(!(txq->status & RWNX_TXQ_IN_HWQ_LIST));
+		if (txq->idx == TXQ_INACTIVE) {
+			printk("%s txq->idx == TXQ_INACTIVE \r\n", __func__);
+			continue;
+		}
 		BUG_ON(txq->idx == TXQ_INACTIVE);
 		BUG_ON(txq->credits <= 0);
 		BUG_ON(!rwnx_txq_skb_ready(txq));
@@ -1213,10 +1236,12 @@ void rwnx_hwq_process(struct rwnx_hw *rwnx_hw, struct rwnx_hwq *hwq)
 
 		/* restart netdev queue if number of queued buffer is below threshold */
 		if (unlikely(txq->status & RWNX_TXQ_NDEV_FLOW_CTRL) &&
-			skb_queue_len(&txq->sk_list) < RWNX_NDEV_FLOW_CTRL_RESTART) {
+			(skb_queue_len(&txq->sk_list) < RWNX_NDEV_FLOW_CTRL_RESTART)) {
 			txq->status &= ~RWNX_TXQ_NDEV_FLOW_CTRL;
 			netif_wake_subqueue(txq->ndev, txq->ndev_idx);
+#ifdef CREATE_TRACE_POINTS
 			trace_txq_flowctrl_restart(txq);
+#endif
 		}
 #endif /* CONFIG_RWNX_FULLMAC */
 	}

@@ -109,7 +109,6 @@
 #define CLK_APB1_I2C1		80
 #define CLK_APB1_I2C2		81
 #define CLK_APB1_I2C3		82
-#define CLK_APB1_CAN		83
 #define CLK_APB1_SCR		84
 #define CLK_APB1_PS20		85
 #define CLK_APB1_PS21		86

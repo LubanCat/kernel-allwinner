@@ -74,6 +74,12 @@ static int api_phy_config_resume(void)
 {
 	return phy_config_resume();
 }
+
+static void api_set_phy_base(uintptr_t base)
+{
+	return phy_set_reg_base(base);
+}
+
 #endif
 
 #ifndef SUPPORT_ONLY_HDMI14
@@ -645,6 +651,7 @@ void hdmitx_api_init(hdmi_tx_dev_t *dev,
 #ifdef CONFIG_AW_PHY
 	func.phy_reset                = api_phy_reset;
 	func.phy_config_resume        = api_phy_config_resume;
+	func.set_phy_base_addr        = api_set_phy_base;
 #endif
 	register_func_to_hdmi_core(func);
 }

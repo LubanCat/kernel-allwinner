@@ -48,6 +48,7 @@ CONFIG_RWNX_BFMER ?= n
 
 CONFIG_SDIO_SUPPORT =y
 CONFIG_USB_SUPPORT =n
+CONFIG_PCIE_SUPPORT =n
 CONFIG_RX_REORDER ?=y
 CONFIG_ARP_OFFLOAD =y
 CONFIG_RADAR_OR_IR_DETECT =n
@@ -55,6 +56,7 @@ CONFIG_DOWNLOAD_FW =y
 CONFIG_RFTEST=y
 CONFIG_USB_BT =n
 CONFIG_GKI_OPT_FEATURES ?= y
+CONFIG_WPA3_FOR_OLD_KERNEL ?= n
 
 
 # Support of MU-MIMO transmission (need FW support)
@@ -79,6 +81,7 @@ CONFIG_RWNX_DBG ?= y
 
 obj-$(CONFIG_AIC8800_WLAN_SUPPORT) := aic8800_fdrv.o
 aic8800_fdrv-y := \
+	rwnx_wakelock.o        \
 	rwnx_gki.o             \
 	rwnx_msg_tx.o          \
 	rwnx_msg_rx.o          \
@@ -94,7 +97,6 @@ aic8800_fdrv-y := \
 	rwnx_mod_params.o      \
 	rwnx_mesh.o            \
 	rwnx_platform.o        \
-	rwnx_pci.o             \
 	rwnx_dini.o            \
 	rwnx_v7.o              \
 	ipc_host.o             \
@@ -114,6 +116,8 @@ aic8800_fdrv-$(CONFIG_SDIO_SUPPORT)     += aicwf_sdio.o
 aic8800_fdrv-$(CONFIG_USB_SUPPORT)     += usb_host.o
 aic8800_fdrv-$(CONFIG_USB_SUPPORT)     += aicwf_txrxif.o
 aic8800_fdrv-$(CONFIG_USB_SUPPORT)     += aicwf_usb.o
+
+aic8800_fdrv-$(CONFIG_PCIE_SUPPORT)    += rwnx_pci.o
 
 ccflags-$(CONFIG_DEBUG_FS) += -DCONFIG_RWNX_DEBUGFS
 ccflags-$(CONFIG_DEBUG_FS) += -DCONFIG_RWNX_UM_HELPER_DFLT=\"$(CONFIG_RWNX_UM_HELPER_DFLT)\"
@@ -139,11 +143,6 @@ ccflags-$(CONFIG_START_FROM_BOOTROM) += -DCONFIG_START_FROM_BOOTROM
 ccflags-$(CONFIG_PMIC_SETTING) += -DCONFIG_PMIC_SETTING
 ccflags-$(CONFIG_ROM_PATCH_EN) += -DCONFIG_ROM_PATCH_EN
 
-CURRENT_CODE_VERSION := $(VERSION).$(PATCHLEVEL).$(SUBLEVEL)
-MINI_VERSION_REQUEST := 4.14.0
-ifeq ($(shell expr $(CURRENT_CODE_VERSION) \< $(MINI_VERSION_REQUEST)),1)
-ccflags-y += -DCONFIG_HE_FOR_OLD_KERNEL
-endif
 ccflags-$(CONFIG_PLATFORM_ALLWINNER) += -DCONFIG_COEX
 ccflags-$(CONFIG_PLATFORM_NANOPI_M4) += -DCONFIG_COEX
 
@@ -162,6 +161,7 @@ ccflags-$(CONFIG_RWNX_DBG) += -DCONFIG_RWNX_DBG
 ccflags-$(CONFIG_RWNX_SW_PROFILING) += -DCONFIG_RWNX_SW_PROFILING
 ccflags-$(CONFIG_RWNX_MUMIMO_TX) += -DCONFIG_RWNX_MUMIMO_TX
 ccflags-$(CONFIG_RFTEST) += -DCONFIG_RFTEST
+ccflags-$(CONFIG_WPA3_FOR_OLD_KERNEL) += -DCONFIG_WPA3_FOR_OLD_KERNEL
 
 ifeq ($(CONFIG_SDIO_SUPPORT), y)
 ccflags-y += -DAICWF_SDIO_SUPPORT
@@ -169,6 +169,10 @@ endif
 
 ifeq ($(CONFIG_USB_SUPPORT), y)
 ccflags-y += -DAICWF_USB_SUPPORT
+endif
+
+ifeq ($(CONFIG_PCIE_SUPPORT), y)
+ccflags-y += -DAICWF_PCIE_SUPPORT
 endif
 
 ifeq ($(CONFIG_RWNX_MUMIMO_TX), y)

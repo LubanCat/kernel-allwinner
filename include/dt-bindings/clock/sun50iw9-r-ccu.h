@@ -12,7 +12,6 @@
 #define CLK_R_APB2		3
 #define CLK_R_APB1_TWD		4
 #define CLK_R_APB2_I2C		5
-#define CLK_R_APB2_CAN		6
 #define CLK_R_APB1_IR		7
 #define CLK_R_APB1_BUS_IR	8
 #define CLK_R_AHB_BUS_RTC	9

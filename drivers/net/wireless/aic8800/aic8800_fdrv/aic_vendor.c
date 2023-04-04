@@ -10,6 +10,7 @@
 #include <net/netlink.h>
 #include "rwnx_version_gen.h"
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 static struct wifi_ring_buffer_status ring_buffer[] = {
 	{
 		.name            = "aicwf_ring_buffer0",
@@ -843,12 +844,15 @@ const struct wiphy_vendor_command aicwf_vendor_cmd[] = {
 
 static const struct nl80211_vendor_cmd_info aicwf_vendor_events[] = {
 };
+#endif
 
 int aicwf_vendor_init(struct wiphy *wiphy)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	wiphy->vendor_commands = aicwf_vendor_cmd;
 	wiphy->n_vendor_commands = ARRAY_SIZE(aicwf_vendor_cmd);
 	wiphy->vendor_events = aicwf_vendor_events;
 	wiphy->n_vendor_events = ARRAY_SIZE(aicwf_vendor_events);
+#endif
 	return 0;
 }
