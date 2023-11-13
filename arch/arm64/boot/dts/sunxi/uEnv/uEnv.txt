@@ -1,0 +1,7 @@
+uname_r=5.4.125
+verbosity=7
+console=both
+disp_mode=1080p60
+fb0_width=1920
+fb0_height=1080
+debug_uart=ttyAS0
