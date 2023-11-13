@@ -64,6 +64,14 @@ fi
 # XXX: have each arch Makefile export a variable of the canonical image install
 # path instead
 case $ARCH in
+aarch64|arm64)
+	image_name=uImage
+	installed_image_path="boot/vmlinuz-$version"
+	;;
+arm*)
+	image_name=zImage
+	installed_image_path="boot/vmlinuz-$version"
+	;;
 um)
 	installed_image_path="usr/bin/linux-$version"
 	;;
@@ -93,12 +101,31 @@ else
 	cp System.map "$tmpdir/boot/System.map-$version"
 	cp $KCONFIG_CONFIG "$tmpdir/boot/config-$version"
 fi
-cp "$($MAKE -s -f $srctree/Makefile image_name)" "$tmpdir/$installed_image_path"
+
+if is_enabled CONFIG_ARCH_SUNXI; then
+	mkimage -A arm -n "${BOARD}" -O linux -T kernel -C none -a 0x41000000 -e 0x41000000 \
+			-d arch/"${ARCH}"/boot/Image "arch/"${ARCH}"/boot/$image_name"
+
+	cp arch/$ARCH/boot/$image_name "$tmpdir/$installed_image_path"
+
+	mkdir -p "$tmpdir/boot/uEnv/"
+	cp arch/$ARCH/boot/dts/sunxi/uEnv/uEnv.txt "$tmpdir/boot/"	
+	cp arch/$ARCH/boot/dts/sunxi/uEnv/uEnv*.txt "$tmpdir/boot/uEnv/"
+	
+	cp arch/$ARCH/boot/dts/sunxi/uEnv/boot.cmd "$tmpdir/boot/"
+	mkimage -C none -A arm -T script -d $tmpdir/boot/boot.cmd "$tmpdir/boot/boot.scr"
+else
+	cp "$($MAKE -s -f $srctree/Makefile image_name)" "$tmpdir/$installed_image_path"
+fi
 
 if is_enabled CONFIG_OF_EARLY_FLATTREE; then
 	# Only some architectures with OF support have this target
 	if [ -d "${srctree}/arch/$SRCARCH/boot/dts" ]; then
-		$MAKE -f $srctree/Makefile INSTALL_DTBS_PATH="$tmpdir/usr/lib/$packagename" dtbs_install
+		if is_enabled CONFIG_ARCH_SUNXI; then
+			$MAKE -f $srctree/Makefile INSTALL_DTBS_PATH="$tmpdir/boot/dtb" dtbs_install
+		else
+			$MAKE -f $srctree/Makefile INSTALL_DTBS_PATH="$tmpdir/usr/lib/$packagename" dtbs_install
+		fi
 	fi
 fi
 
@@ -148,7 +175,7 @@ debhookdir=${KDEB_HOOKDIR:-/etc/kernel}
 for script in postinst postrm preinst prerm ; do
 	mkdir -p "$tmpdir$debhookdir/$script.d"
 	cat <<EOF > "$tmpdir/DEBIAN/$script"
-#!/bin/sh
+#!/bin/bash
 
 set -e
 
