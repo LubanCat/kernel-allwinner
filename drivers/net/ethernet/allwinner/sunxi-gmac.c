@@ -919,7 +919,10 @@ static int geth_phy_init(struct net_device *ndev)
 			if (!phydev_tmp)
 				continue;
 
-			if (phydev_tmp->phy_id == EPHY_ID) {
+			if (phydev_tmp->phy_id == EPHY_ID ||
+				phydev_tmp->phy_id == IP101G_ID ||
+				phydev_tmp->phy_id == EPHY_ID_RTL8211F ||
+				phydev_tmp->phy_id == EPHY_ID_JL2101) {
 				phydev = phydev_tmp;
 				priv->phy_addr = addr;
 				break;
@@ -1514,7 +1517,7 @@ static int geth_open(struct net_device *ndev)
 		}
 	}
 
-	ret = sunxi_mac_reset((void *)priv->base, &sunxi_udelay, 10000);
+	ret = sunxi_mac_reset((void *)priv->base, &sunxi_udelay, 1500000);
 	if (ret) {
 		netdev_err(ndev, "Initialize hardware error\n");
 		goto desc_err;

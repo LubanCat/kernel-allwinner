@@ -41,8 +41,11 @@
 #define RX_SINGLE_DESC0		0x80000000
 #define RX_SINGLE_DESC1		0x83000000
 
-#define AC300_ID		0xc0000000
-#define EPHY_ID			0x00441400
+#define AC300_ID			0xc0000000
+#define EPHY_ID				0x00441400
+#define EPHY_ID_JL2101		0x937c4032
+#define EPHY_ID_RTL8211F	0x001CC916
+#define IP101G_ID			0x02430c54
 
 typedef union {
 	struct {
