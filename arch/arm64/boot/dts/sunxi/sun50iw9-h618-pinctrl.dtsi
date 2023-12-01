@@ -228,7 +228,7 @@
 			"PI8", "PI9", "PI10", "PI11",
 			"PI12", "PI13", "PI14", "PI15";
 		function = "gmac0";
-		drive-strength = <10>;
+		drive-strength = <30>;
 		bias-pull-up;
 	};
 
