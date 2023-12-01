@@ -1,2 +1,5 @@
 Image
 Image.gz
+uImage
+*.dtbo
+*.dtb
