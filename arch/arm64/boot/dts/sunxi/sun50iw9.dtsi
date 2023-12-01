@@ -547,7 +547,7 @@
 
 			device_type = "tv0";
 			pinctrl-names = "active","sleep";
-			status = "okay";
+			status = "disabled";
 		};
 
 		ccu: ccu@3001000 {
@@ -750,7 +750,7 @@
 
 		ac200: ac200{
 			compatible = "allwinner,sunxi-ac200";
-			status = "okay";
+			status = "disabled";
 		};
 
 		pio: pinctrl@300b000 {
@@ -784,44 +784,44 @@
 			};
 
 			sdc0_pins_a: sdc0@0 {
-                                pins = "PF0", "PF1", "PF2",
-                                       "PF3", "PF4", "PF5";
-                                function = "sdc0";
-                                drive-strength = <30>;
-                                bias-pull-up;
-                                power-source = <3300>;
-                        };
+				pins = "PF0", "PF1", "PF2",
+						"PF3", "PF4", "PF5";
+				function = "sdc0";
+				drive-strength = <30>;
+				bias-pull-up;
+				power-source = <3300>;
+			};
 
-                        sdc0_pins_b: sdc0@1 {
-                                pins = "PF0", "PF1", "PF2",
-                                       "PF3", "PF4", "PF5";
-                                function = "sdc0";
-                                drive-strength = <30>;
-                                bias-pull-up;
-                                power-source = <1800>;
-                        };
+			sdc0_pins_b: sdc0@1 {
+				pins = "PF0", "PF1", "PF2",
+						"PF3", "PF4", "PF5";
+				function = "sdc0";
+				drive-strength = <30>;
+				bias-pull-up;
+				power-source = <1800>;
+			};
 
-                        sdc0_pins_c: sdc0@2 {
-                                pins = "PF0", "PF1", "PF2",
-                                       "PF3", "PF4", "PF5";
-                                function = "gpio_in";
-                        };
+			sdc0_pins_c: sdc0@2 {
+				pins = "PF0", "PF1", "PF2",
+						"PF3", "PF4", "PF5";
+				function = "gpio_in";
+			};
 
-                        /* TODO: add jtag pin */
-                        sdc0_pins_d: sdc0@3 {
-                                pins = "PF2", "PF4";
-                                function = "uart0";
-                                drive-strength = <10>;
-                                bias-pull-up;
-                        };
+			/* TODO: add jtag pin */
+			sdc0_pins_d: sdc0@3 {
+				pins = "PF2", "PF4";
+				function = "uart0";
+				drive-strength = <10>;
+				bias-pull-up;
+			};
 
-                        sdc0_pins_e: sdc0@4 {
-                                pins = "PF0", "PF1", "PF3",
-                                        "PF5";
-                                function = "jtag";
-                                drive-strength = <10>;
-                                bias-pull-up;
-                        };
+			sdc0_pins_e: sdc0@4 {
+				pins = "PF0", "PF1", "PF3",
+						"PF5";
+				function = "jtag";
+				drive-strength = <10>;
+				bias-pull-up;
+			};
 
 			sdc1_pins_a: sdc1@0 {
 				pins = "PG0", "PG1", "PG2",
