@@ -5,7 +5,7 @@
 
 # default values
 setenv load_addr "0x45000000"
-setenv rootdev "/dev/mmcblk0p1"
+setenv rootdev "/dev/mmcblk1p1"
 setenv verbosity "1"
 setenv rootfstype "ext4"
 setenv console "both"
@@ -54,6 +54,11 @@ fdt set disp tv_vdid <${tv_vdid}>
 
 fdt set /soc/disp fb0_width <${fb0_width}>
 fdt set /soc/disp fb0_height <${fb0_height}>
+
+## test mode：delete “#” before fdt and add "tx-delay=" "rx-delay=" in uEnv.txt
+## tx-delay= 0 ~ 7, rx-delay= 0 ~ 31
+#fdt set gmac0 tx-delay <${tx-delay}>
+#fdt set gmac0 rx-delay <${rx-delay}>
 
 for overlay_file in ${overlays}; do
 	if load ${devtype} ${devnum} ${load_addr} ${prefix}dtb/sunxi/overlay/${overlay_file}; then
