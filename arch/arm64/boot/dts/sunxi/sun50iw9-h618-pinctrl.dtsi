@@ -258,6 +258,18 @@
 		drive-strength = <10>;
 	};
 
+	pwm1_pin_a: pwm1@0 {
+		pins = "PG19";
+		function = "pwm1";
+		drive-strength = <10>;
+		bias-pull-up;
+	};
+
+	pwm1_pin_b: pwm1@1 {
+		pins = "PG19";
+		function = "gpio_in";
+	};
+
 	pwm5_pin_a: pwm5@0 {
 		pins = "PA12";
 		function = "pwm5";

@@ -81,7 +81,17 @@
 	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&spi1_pins_a &spi1_pins_b>;
 	pinctrl-1 = <&spi1_pins_c>;
-	status = "disabled";
+	status = "okay";
+
+	spi_board1@0 {
+		device_type = "spi_board1";
+		compatible = "rohm,dh2228fv";
+		spi-max-frequency = <0x5f5e100>;
+		reg = <0x0>;
+		spi-rx-bus-width = <0x1>;
+		spi-tx-bus-width = <0x1>;
+		status = "okay";
+	};
 };
 
 // DEBUG UART0
@@ -114,7 +124,7 @@
 	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&uart5_ph_pins>;
 	pinctrl-1 = <&uart5_ph_sleep>;
-	status = "disabled";
+	status = "okay";
 };
 
 // eMMC
@@ -168,9 +178,16 @@
 	status = "okay";
 };
 
+&pwm1 {
+	pinctrl-names = "active", "sleep";
+	pinctrl-0 = <&pwm1_pin_a>;
+	pinctrl-1 = <&pwm1_pin_b>;
+	status = "okay";
+};
+
 // 26PIN 6,8 UART5/TWI2
 &twi2 {
-	clock-frequency = <400000>;
+	clock-frequency = <100000>;
 	pinctrl-0 = <&twi2_pins_a>;
 	pinctrl-1 = <&twi2_pins_b>;
 	pinctrl-names = "default", "sleep";
@@ -184,8 +201,8 @@
 	pinctrl-0 = <&twi4_pins_a>;
 	pinctrl-1 = <&twi4_pins_b>;
 	pinctrl-names = "default", "sleep";
-	twi_drv_used = <1>;
-	status = "disabled";
+	twi_drv_used = <0>;
+	status = "okay";
 };
 
 // PMIC TWI5
@@ -294,6 +311,7 @@
 		card_high_speed = <0x1>;
 		card_line = <0x4>;
 		pinctrl-0 = <&sdc0_pins_a>;
+		sdc_type = "tm1";
 	};
 
 	card2_boot_para@3 {
