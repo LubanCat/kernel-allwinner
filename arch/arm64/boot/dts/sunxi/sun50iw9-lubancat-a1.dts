@@ -64,241 +64,101 @@
 	};
 };
 
+/*
+ *usb_port_type: usb mode. 0-device, 1-host, 2-otg.
+ *usb_detect_type: usb hotplug detect mode. 0-none, 1-vbus/id detect, 2-id/dpdm detect.
+ *usb_detect_mode: 0-thread scan, 1-id gpio interrupt.
+ *usb_id_gpio: gpio for id detect.
+ *usb_det_vbus_gpio: gpio for id detect. gpio or "axp_ctrl";
+ *usb_wakeup_suspend：0-SUPER_STANDBY, 1-USB_STANDBY.
+ */
+&usbc0 {
+	device_type		= "usbc0";
+	usb_port_type		= <0x2>;
+	usb_detect_type		= <0x1>;
+	usb_detect_mode		= <0x0>;
+	usb_id_gpio = <&pio PC 2 GPIO_ACTIVE_HIGH>;
+	usb_det_vbus_gpio = <&pio PC 2 GPIO_ACTIVE_HIGH>;
+	usb_regulator_io	= "nocare";
+	usb_wakeup_suspend	= <0x0>;
+	usb_luns		= <0x3>;
+	usb_serial_unique	= <0>;
+	usb_serial_number	= "20080411";
+	status			= "okay";
+};
+
+&ehci0 {
+	drvvbus-supply		= <&usb0_drvvbus>;
+	status			= "okay";
+};
+
+&ohci0 {
+	drvvbus-supply		= <&usb0_drvvbus>;
+	status			= "okay";
+};
+
+&usbc1 {
+	device_type = "usbc1";
+	usb_regulator_io = "nocare";
+	usb_wakeup_suspend	= <0x0>;
+	status = "okay";
+};
+
+&ehci1 {
+	drvvbus-supply		= <&usb0_drvvbus>;
+	status			= "okay";
+};
+
+&ohci1 {
+	drvvbus-supply		= <&usb0_drvvbus>;
+	status			= "okay";
+};
+
+&usbc2 {
+	device_type = "usbc2";
+	usb_regulator_io = "nocare";
+	usb_wakeup_suspend = <0x0>;
+	status = "okay";
+};
+
+&ehci2 {
+	drvvbus-supply		= <&usb0_drvvbus>;
+	status			= "okay";
+};
+
+&ohci2 {
+	drvvbus-supply		= <&usb0_drvvbus>;
+	status			= "okay";
+};
+
+&usbc3 {
+	device_type = "usbc3";
+	usb_regulator_io = "nocare";
+	usb_wakeup_suspend = <0x0>;
+	status = "okay";
+};
+
+&ehci3 {
+	drvvbus-supply		= <&usb0_drvvbus>;
+	status			= "okay";
+};
+
+&ohci3 {
+	drvvbus-supply		= <&usb0_drvvbus>;
+	status			= "okay";
+};
+
 &cpu0 {
 	cpu-supply = <&reg_dcdc2>;
 };
 
-&spi0 {
-	spi_slave_mode = <0>;
-	pinctrl-names = "default", "sleep";
-	/* pinctrl-0 = <&spi0_pins_a &spi0_pins_b>; */
-	/* pinctrl-1 = <&spi0_pins_c>; */
-	status = "disabled";
-};
-
-&spi1 {
-	spi_slave_mode = <0>;
-	pinctrl-names = "default", "sleep";
-	pinctrl-0 = <&spi1_pins_a &spi1_pins_b>;
-	pinctrl-1 = <&spi1_pins_c>;
-	status = "okay";
-
-	spi_board1@0 {
-		device_type = "spi_board1";
-		compatible = "rohm,dh2228fv";
-		spi-max-frequency = <0x5f5e100>;
-		reg = <0x0>;
-		spi-rx-bus-width = <0x1>;
-		spi-tx-bus-width = <0x1>;
-		status = "okay";
-	};
-};
-
-// DEBUG UART0
-&uart0 {
-	pinctrl-names = "default", "sleep";
-	pinctrl-0 = <&uart0_ph_pins>;
-	pinctrl-1 = <&uart0_ph_sleep>;
-	status = "okay";
-};
-
-// BT UART1
-&uart1 {
-	pinctrl-names = "default", "sleep";
-	pinctrl-0 = <&uart1_ph_pins>;
-	pinctrl-1 = <&uart1_ph_sleep>;
-	device_type = "uart1";
-	status = "okay";
-};
-
-// 26PIN 3,5 TWI4/UART2
-&uart2 {
-	pinctrl-names = "default", "sleep";
-	pinctrl-0 = <&uart2_ph_pins>;
-	pinctrl-1 = <&uart2_ph_sleep>;
-	status = "disabled";
-};
-
-// 26PIN 6,8 UART5/TWI2
-&uart5 {
-	pinctrl-names = "default", "sleep";
-	pinctrl-0 = <&uart5_ph_pins>;
-	pinctrl-1 = <&uart5_ph_sleep>;
-	status = "okay";
-};
-
-// eMMC
-&sdc2 {
-	max-frequency = <100000000>;
-	mmc-ddr-1_8v;
-	mmc-hs200-1_8v;
-	mmc-hs400-1_8v;
-	sunxi-dis-signal-vol-sw;
-	vmmc-supply = <&reg_dldo1>;
-	vqmmc-supply = <&reg_aldo1>;
-	status = "okay";
-};
-
-// SD Card
-&sdc0 {
-	max-frequency = <150000000>;
-	sd-uhs-sdr50;
-	sd-uhs-ddr50;
-	sd-uhs-sdr104;
-	vmmc-supply = <&reg_dldo1>;
-	vqmmc33sw-supply = <&reg_dldo1>;
-	vdmmc33sw-supply = <&reg_dldo1>;
-	vqmmc18sw-supply = <&reg_aldo1>;
-	vdmmc18sw-supply = <&reg_aldo1>;
-	cd-gpios = <&pio PH 4 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
-	status = "okay";
-};
-
-// WIFI
-&sdc1 {
-	max-frequency = <150000000>;
-	pinctrl-0 = <&sdc1_pins_a>;
-	bus-width = <4>;
-	no-mmc;
-	no-sd;
-	cap-sd-highspeed;
-	sd-uhs-sdr12;
-	sd-uhs-sdr25;
-	sd-uhs-sdr50;
-	sd-uhs-ddr50;
-	sd-uhs-sdr104;
-	/*sunxi-power-save-mode;*/
-	sunxi-dis-signal-vol-sw;
-	cap-sdio-irq;
-	keep-power-in-suspend;
-	ignore-pm-notify;
-	ctl-spec-caps = <0x8>;
-	vmmc-supply = <&reg_dldo1>;
-	vqmmc-supply = <&reg_aldo1>;
-	status = "okay";
-};
-
-&pwm1 {
-	pinctrl-names = "active", "sleep";
-	pinctrl-0 = <&pwm1_pin_a>;
-	pinctrl-1 = <&pwm1_pin_b>;
-	status = "okay";
-};
-
-// 26PIN 6,8 UART5/TWI2
-&twi2 {
-	clock-frequency = <100000>;
-	pinctrl-0 = <&twi2_pins_a>;
-	pinctrl-1 = <&twi2_pins_b>;
-	pinctrl-names = "default", "sleep";
-	twi_drv_used = <1>;
-	status = "disabled";
-};
-
-// 26PIN 3,5 TWI4/UART2
-&twi4 {
-	clock-frequency = <400000>;
-	pinctrl-0 = <&twi4_pins_a>;
-	pinctrl-1 = <&twi4_pins_b>;
-	pinctrl-names = "default", "sleep";
-	twi_drv_used = <0>;
-	status = "okay";
-};
-
-// PMIC TWI5
-&twi5 {
-	clock-frequency = <400000>;
-	pinctrl-0 = <&s_twi0_pins_a>;
-	pinctrl-1 = <&s_twi0_pins_b>;
-	pinctrl-names = "default", "sleep";
-	device_type = "twi5";
-	no_suspend = <1>;
-	twi_drv_used = <0>;
-	status = "okay";
-
-	pmu0: pmu{
-		compatible = "x-powers,axp1530";
-		reg = <0x36>;
-		/* irq line nc */
-		wakeup-source;
-
-		standby_param: standby_param {
-			vcc-dram = <0x4>;
-		};
-
-		regulators{
-			reg_dcdc1: dcdc1 {
-				regulator-name = "axp1530-dcdc1";
-				regulator-min-microvolt = <500000>;
-				regulator-max-microvolt = <3400000>;
-				regulator-step-delay-us = <25>;
-				regulator-final-delay-us = <50>;
-				regulator-always-on;
-			};
-
-			reg_dcdc2: dcdc2 {
-				regulator-name = "axp1530-dcdc2";
-				regulator-min-microvolt = <500000>;
-				regulator-max-microvolt = <1540000>;
-				regulator-step-delay-us = <25>;
-				regulator-final-delay-us = <50>;
-				regulator-ramp-delay = <200>; /* FIXME */
-				regulator-always-on;
-			};
-
-			reg_dcdc3: dcdc3 {
-				regulator-name = "axp1530-dcdc3";
-				regulator-min-microvolt = <500000>;
-				regulator-max-microvolt = <1840000>;
-				regulator-step-delay-us = <25>;
-				regulator-final-delay-us = <50>;
-				regulator-always-on;
-			};
-
-			reg_aldo1: ldo1 {
-				regulator-name = "axp1530-aldo1";
-				regulator-min-microvolt = <500000>;
-				regulator-max-microvolt = <3500000>;
-				regulator-step-delay-us = <25>;
-				regulator-final-delay-us = <50>;
-				regulator-always-on;
-			};
-
-			reg_dldo1: ldo2 {
-				regulator-name = "axp1530-dldo1";
-				regulator-min-microvolt = <500000>;
-				regulator-max-microvolt = <3500000>;
-				regulator-step-delay-us = <25>;
-				regulator-final-delay-us = <50>;
-				regulator-always-on;
-			};
-		};
-	};
-};
-
+// CPU 掉电保护温度
 &cpu_trips{
 	cpu_crit: cpu_crit@0 {
 		temperature = <115000>;
 		type = "critical";
 		hysteresis = <0>;
 	};
-};
-
-// Ethernet 1000M
-&gmac0 {
-	phy-mode = "rgmii";
-	use_ephy25m = <0>;
-	pinctrl-0 = <&gmac0_pins_a>;
-	pinctrl-1 = <&gmac0_pins_b>;
-	pinctrl-names = "default", "sleep";
-	// 20231020
-	tx-delay = <3>; // value = 0 ~ 7
-	rx-delay = <9>; // value = 0 ~ 31
-	status = "okay";
-
-	// 20230904
-	// tx-delay = <6>;
-	// rx-delay = <11>;
 };
 
 /* for disp */
@@ -436,6 +296,118 @@
 	};
 };
 
+// PMIC TWI5
+&twi5 {
+	clock-frequency = <400000>;
+	pinctrl-0 = <&s_twi0_pins_a>;
+	pinctrl-1 = <&s_twi0_pins_b>;
+	pinctrl-names = "default", "sleep";
+	device_type = "twi5";
+	no_suspend = <1>;
+	twi_drv_used = <0>;
+	status = "okay";
+
+	pmu0: pmu{
+		compatible = "x-powers,axp1530";
+		reg = <0x36>;
+		/* irq line nc */
+		wakeup-source;
+
+		standby_param: standby_param {
+			vcc-dram = <0x4>;
+		};
+
+		regulators{
+			reg_dcdc1: dcdc1 {
+				regulator-name = "axp1530-dcdc1";
+				regulator-min-microvolt = <500000>;
+				regulator-max-microvolt = <3400000>;
+				regulator-step-delay-us = <25>;
+				regulator-final-delay-us = <50>;
+				regulator-always-on;
+			};
+
+			reg_dcdc2: dcdc2 {
+				regulator-name = "axp1530-dcdc2";
+				regulator-min-microvolt = <500000>;
+				regulator-max-microvolt = <1540000>;
+				regulator-step-delay-us = <25>;
+				regulator-final-delay-us = <50>;
+				regulator-ramp-delay = <200>; /* FIXME */
+				regulator-always-on;
+			};
+
+			reg_dcdc3: dcdc3 {
+				regulator-name = "axp1530-dcdc3";
+				regulator-min-microvolt = <500000>;
+				regulator-max-microvolt = <1840000>;
+				regulator-step-delay-us = <25>;
+				regulator-final-delay-us = <50>;
+				regulator-always-on;
+			};
+
+			reg_aldo1: ldo1 {
+				regulator-name = "axp1530-aldo1";
+				regulator-min-microvolt = <500000>;
+				regulator-max-microvolt = <3500000>;
+				regulator-step-delay-us = <25>;
+				regulator-final-delay-us = <50>;
+				regulator-always-on;
+			};
+
+			reg_dldo1: ldo2 {
+				regulator-name = "axp1530-dldo1";
+				regulator-min-microvolt = <500000>;
+				regulator-max-microvolt = <3500000>;
+				regulator-step-delay-us = <25>;
+				regulator-final-delay-us = <50>;
+				regulator-always-on;
+			};
+		};
+	};
+};
+
+// DEBUG UART0
+&uart0 {
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&uart0_ph_pins>;
+	pinctrl-1 = <&uart0_ph_sleep>;
+	status = "okay";
+};
+
+// WIFI
+&sdc1 {
+	max-frequency = <150000000>;
+	pinctrl-0 = <&sdc1_pins_a>;
+	bus-width = <4>;
+	no-mmc;
+	no-sd;
+	cap-sd-highspeed;
+	sd-uhs-sdr12;
+	sd-uhs-sdr25;
+	sd-uhs-sdr50;
+	sd-uhs-ddr50;
+	sd-uhs-sdr104;
+	/*sunxi-power-save-mode;*/
+	sunxi-dis-signal-vol-sw;
+	cap-sdio-irq;
+	keep-power-in-suspend;
+	ignore-pm-notify;
+	ctl-spec-caps = <0x8>;
+	vmmc-supply = <&reg_dldo1>;
+	vqmmc-supply = <&reg_aldo1>;
+	status = "okay";
+};
+
+// BT UART1
+&uart1 {
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&uart1_ph_pins>;
+	pinctrl-1 = <&uart1_ph_sleep>;
+	device_type = "uart1";
+	status = "okay";
+};
+
 &rfkill {
 	compatible = "allwinner,sunxi-rfkill";
 	chip_en;
@@ -478,6 +450,7 @@
 	status = "okay";
 };
 
+// HDMI OUTPUT
 &hdmi {
 	hdmi_used = <1>;
 	aldo1-supply = <&reg_aldo1>;
@@ -548,6 +521,43 @@
 	disp_para_zone           = <1>;
 };
 
+&gpu {
+	gpu_idle = <1>;
+	dvfs_status = <1>;
+	operating-points = <
+		600000 950000
+		576000 950000
+		540000 950000
+		504000 950000
+		456000 950000
+		420000 950000
+		384000 950000
+		360000 950000
+		336000 950000
+		306000 950000
+	>;
+};
+
+// eMMC
+&sdc2 {
+	max-frequency = <100000000>;
+	mmc-ddr-1_8v;
+	mmc-hs200-1_8v;
+	mmc-hs400-1_8v;
+	sunxi-dis-signal-vol-sw;
+	vmmc-supply = <&reg_dldo1>;
+	vqmmc-supply = <&reg_aldo1>;
+	status = "okay";
+};
+
+// FAN
+&pwm1 {
+	pinctrl-names = "active", "sleep";
+	pinctrl-0 = <&pwm1_pin_a>;
+	pinctrl-1 = <&pwm1_pin_b>;
+	status = "okay";
+};
+
 // IR
 &s_cir0 {
 	s_cir0_used = <1>;
@@ -576,111 +586,9 @@
 	status = "okay";
 };
 
-
-&gpu {
-	gpu_idle = <1>;
-	dvfs_status = <1>;
-	operating-points = <
-		600000 950000
-		576000 950000
-		540000 950000
-		504000 950000
-		456000 950000
-		420000 950000
-		384000 950000
-		360000 950000
-		336000 950000
-		306000 950000
-	>;
-};
-
-/*
- *usb_port_type: usb mode. 0-device, 1-host, 2-otg.
- *usb_detect_type: usb hotplug detect mode. 0-none, 1-vbus/id detect, 2-id/dpdm detect.
- *usb_detect_mode: 0-thread scan, 1-id gpio interrupt.
- *usb_id_gpio: gpio for id detect.
- *usb_det_vbus_gpio: gpio for id detect. gpio or "axp_ctrl";
- *usb_wakeup_suspend：0-SUPER_STANDBY, 1-USB_STANDBY.
- */
-&usbc0 {
-	device_type		= "usbc0";
-	usb_port_type		= <0x2>;
-	usb_detect_type		= <0x1>;
-	usb_detect_mode		= <0x0>;
-	usb_id_gpio = <&pio PC 2 GPIO_ACTIVE_HIGH>;
-	usb_det_vbus_gpio = <&pio PC 2 GPIO_ACTIVE_HIGH>;
-	usb_regulator_io	= "nocare";
-	usb_wakeup_suspend	= <0x0>;
-	usb_luns		= <0x3>;
-	usb_serial_unique	= <0>;
-	usb_serial_number	= "20080411";
-	status			= "okay";
-};
-
-&ehci0 {
-	drvvbus-supply		= <&usb0_drvvbus>;
-	status			= "okay";
-};
-
-&ohci0 {
-	drvvbus-supply		= <&usb0_drvvbus>;
-	status			= "okay";
-};
-
-&usbc1 {
-	device_type = "usbc1";
-	usb_regulator_io = "nocare";
-	usb_wakeup_suspend	= <0x0>;
-	status = "okay";
-};
-
-&ehci1 {
-	drvvbus-supply		= <&usb0_drvvbus>;
-	status			= "okay";
-};
-
-&ohci1 {
-	drvvbus-supply		= <&usb0_drvvbus>;
-	status			= "okay";
-};
-
-&usbc2 {
-	device_type = "usbc2";
-	usb_regulator_io = "nocare";
-	usb_wakeup_suspend = <0x0>;
-	status = "okay";
-};
-
-&ehci2 {
-	drvvbus-supply		= <&usb0_drvvbus>;
-	status			= "okay";
-};
-
-&ohci2 {
-	drvvbus-supply		= <&usb0_drvvbus>;
-	status			= "okay";
-};
-
-&usbc3 {
-	device_type = "usbc3";
-	usb_regulator_io = "nocare";
-	usb_wakeup_suspend = <0x0>;
-	status = "okay";
-};
-
-&ehci3 {
-	drvvbus-supply		= <&usb0_drvvbus>;
-	status			= "okay";
-};
-
-&ohci3 {
-	drvvbus-supply		= <&usb0_drvvbus>;
-	status			= "okay";
-};
-
 /* audio dirver module -> audio codec */
 &codec {
-	lineout_vol	= <31>;
+	lineout_vol	= <26>;
 	tx_hub_en;
 	status		= "okay";
 };
@@ -691,4 +599,138 @@
 
 &codec_mach {
 	status		= "okay";
+};
+
+/* audio dirver module -> audio hub */
+&ahub_dam_plat {
+	status		= "okay";
+};
+
+&ahub_dam_mach {
+	status		= "okay";
+};
+
+&ahub1_plat {
+	tdm_num		= <1>;
+	tx_pin		= <0>;
+	rx_pin		= <0>;
+	dai_type	= "hdmi";
+	status		= "okay";
+};
+
+&ahub1_mach {
+	status		= "okay";
+	soundcard-mach,format		= "i2s";
+	soundcard-mach,frame-master	= <&ahub1_cpu>;
+	soundcard-mach,bitclock-master	= <&ahub1_cpu>;
+	/* soundcard-mach,frame-inversion; */
+	/* soundcard-mach,bitclock-inversion; */
+	soundcard-mach,slot-num		= <2>;
+	soundcard-mach,slot-width	= <32>;
+	ahub1_cpu: soundcard-mach,cpu {
+		sound-dai = <&ahub1_plat>;
+		soundcard-mach,pll-fs	= <4>;	/* pll freq = 24.576M or 22.5792M * pll-fs */
+		soundcard-mach,mclk-fs	= <0>;	/* mclk freq = pcm rate * mclk-fs */
+	};
+	ahub1_codec: soundcard-mach,codec {
+	};
+};
+
+// SD Card
+&sdc0 {
+	max-frequency = <150000000>;
+	sd-uhs-sdr50;
+	sd-uhs-ddr50;
+	sd-uhs-sdr104;
+	vmmc-supply = <&reg_dldo1>;
+	vqmmc33sw-supply = <&reg_dldo1>;
+	vdmmc33sw-supply = <&reg_dldo1>;
+	vqmmc18sw-supply = <&reg_aldo1>;
+	vdmmc18sw-supply = <&reg_aldo1>;
+	cd-gpios = <&pio PH 4 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+	status = "okay";
+};
+
+// Ethernet 1000M
+&gmac0 {
+	phy-mode = "rgmii";
+	use_ephy25m = <0>;
+	pinctrl-0 = <&gmac0_pins_a>;
+	pinctrl-1 = <&gmac0_pins_b>;
+	pinctrl-names = "default", "sleep";
+	// 20231020
+	tx-delay = <3>; // value = 0 ~ 7
+	rx-delay = <9>; // value = 0 ~ 31
+	status = "okay";
+
+	// 20230904
+	// tx-delay = <6>;
+	// rx-delay = <11>;
+};
+
+// 26PIN 3,5 TWI4/UART2
+&twi4 {
+	clock-frequency = <400000>;
+	pinctrl-0 = <&twi4_pins_a>;
+	pinctrl-1 = <&twi4_pins_b>;
+	pinctrl-names = "default", "sleep";
+	twi_drv_used = <0>;
+	status = "okay";
+};
+
+&uart2 {
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&uart2_ph_pins>;
+	pinctrl-1 = <&uart2_ph_sleep>;
+	status = "disabled";
+};
+
+// 26PIN 6,8 UART5/TWI2
+&uart5 {
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&uart5_ph_pins>;
+	pinctrl-1 = <&uart5_ph_sleep>;
+	status = "okay";
+};
+
+&twi2 {
+	clock-frequency = <400000>;
+	pinctrl-0 = <&twi2_pins_a>;
+	pinctrl-1 = <&twi2_pins_b>;
+	pinctrl-names = "default", "sleep";
+	twi_drv_used = <0>;
+	status = "disabled";
+};
+
+// 26PIN 19,21,23,24,26 SPI1
+&spi1 {
+	spi_slave_mode = <0>;
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&spi1_pins_a &spi1_pins_b>;
+	pinctrl-1 = <&spi1_pins_c>;
+	spi1_cs_number = <2>; //控制器cs脚数量
+	spi1_cs_bitmap = <3>; // cs0‑ 0x1; cs1‑0x2, cs0&cs1‑0x3.
+	status = "okay";
+
+	// /dev/spidev1.0
+	spi_board1@0 {
+		device_type = "spi_board1";
+		compatible = "rohm,dh2228fv";
+		spi-max-frequency = <100000000>;
+		reg = <0x0>;
+		spi-rx-bus-width = <0x1>;
+		spi-tx-bus-width = <0x1>;
+		status = "okay";
+	};
+
+	// /dev/spidev1.1
+	spi_board1@1 {
+		device_type = "spi_board1";
+		compatible = "rohm,dh2228fv";
+		spi-max-frequency = <100000000>;
+		reg = <0x1>;
+		spi-rx-bus-width = <0x1>;
+		spi-tx-bus-width = <0x1>;
+		status = "okay";
+	};
 };
