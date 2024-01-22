@@ -11,7 +11,7 @@ setenv rootfstype "ext4"
 setenv console "both"
 setenv docker_optimizations "off"
 setenv bootlogo "false"
-setenv debug_uart "ttyS0"
+setenv debug_uart "ttyAS0"
 
 # Print boot source
 itest.b *0x10028 == 0x00 && echo "U-boot loaded from SD"
@@ -21,6 +21,13 @@ itest.b *0x10028 == 0x03 && echo "U-boot loaded from SPI"
 echo "Boot script loaded from ${devtype}"
 
 if test -e ${devtype} ${devnum} ${prefix}uEnv.txt; then
+	echo "load and import env from ${devtype} ${devnum} ${load_addr} ${prefix}autoEnv"
+	load ${devtype} ${devnum} ${load_addr} ${prefix}autoEnv
+	env import -t ${load_addr} ${filesize}
+fi
+
+if test -e ${devtype} ${devnum} ${prefix}uEnv.txt; then
+    echo "load and import env from ${devtype} ${devnum} ${load_addr} ${prefix}uEnv.txt"
 	load ${devtype} ${devnum} ${load_addr} ${prefix}uEnv.txt
 	env import -t ${load_addr} ${filesize}
 fi
