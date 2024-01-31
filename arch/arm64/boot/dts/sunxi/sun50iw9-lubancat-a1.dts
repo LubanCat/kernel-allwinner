@@ -555,7 +555,7 @@
 	pinctrl-names = "active", "sleep";
 	pinctrl-0 = <&pwm1_pin_a>;
 	pinctrl-1 = <&pwm1_pin_b>;
-	status = "okay";
+	status = "disabled";
 };
 
 // IR
@@ -675,7 +675,7 @@
 	pinctrl-1 = <&twi4_pins_b>;
 	pinctrl-names = "default", "sleep";
 	twi_drv_used = <0>;
-	status = "okay";
+	status = "disabled";
 };
 
 &uart2 {
@@ -690,7 +690,7 @@
 	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&uart5_ph_pins>;
 	pinctrl-1 = <&uart5_ph_sleep>;
-	status = "okay";
+	status = "disabled";
 };
 
 &twi2 {
@@ -710,7 +710,7 @@
 	pinctrl-1 = <&spi1_pins_c>;
 	spi1_cs_number = <2>; //控制器cs脚数量
 	spi1_cs_bitmap = <3>; // cs0‑ 0x1; cs1‑0x2, cs0&cs1‑0x3.
-	status = "okay";
+	status = "disabled";
 
 	// /dev/spidev1.0
 	spi_board1@0 {
@@ -720,7 +720,6 @@
 		reg = <0x0>;
 		spi-rx-bus-width = <0x1>;
 		spi-tx-bus-width = <0x1>;
-		status = "okay";
 	};
 
 	// /dev/spidev1.1
@@ -731,6 +730,5 @@
 		reg = <0x1>;
 		spi-rx-bus-width = <0x1>;
 		spi-tx-bus-width = <0x1>;
-		status = "okay";
 	};
 };
