@@ -47,15 +47,16 @@
 /*
  * #define BT_SLEEP_DBG
  */
-#define BT_SLEEP_DBG
 #undef BT_DBG
 #undef BT_ERR
+
 #ifdef BT_SLEEP_DBG
 #define BT_DBG(fmt, arg...) pr_debug("[BT_LPM] %s: " fmt "\n",\
 				__func__, ## arg)
 #else
 #define BT_DBG(fmt, arg...)
 #endif
+
 #define BT_ERR(fmt, arg...) pr_debug("[BT_LPM] %s: " fmt "\n",\
 				__func__, ## arg)
 
