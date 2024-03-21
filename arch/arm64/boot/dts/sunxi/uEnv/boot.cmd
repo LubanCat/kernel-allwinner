@@ -20,7 +20,7 @@ itest.b *0x10028 == 0x03 && echo "U-boot loaded from SPI"
 
 echo "Boot script loaded from ${devtype}"
 
-if test -e ${devtype} ${devnum} ${prefix}uEnv.txt; then
+if test -e ${devtype} ${devnum} ${prefix}autoEnv; then
 	echo "load and import env from ${devtype} ${devnum} ${load_addr} ${prefix}autoEnv"
 	load ${devtype} ${devnum} ${load_addr} ${prefix}autoEnv
 	env import -t ${load_addr} ${filesize}
@@ -48,6 +48,8 @@ setenv bootargs "root=${rootdev} rootwait rootfstype=${rootfstype} ${consoleargs
 
 if test "${docker_optimizations}" = "on"; then setenv bootargs "${bootargs} cgroup_enable=memory swapaccount=1"; fi
 
+printenv bootargs
+
 #load ${devtype} ${devnum} ${fdt_addr_r} ${prefix}dtb/${fdtfile}
 #fdt addr -c ${fdt_addr_r}
 #fdt addr ${fdt_addr_r}
@@ -74,9 +76,13 @@ for overlay_file in ${overlays}; do
 	fi
 done
 
+echo "load ${devtype} ${devnum} ${ramdisk_addr_r} ${prefix}uInitrd"
 load ${devtype} ${devnum} ${ramdisk_addr_r} ${prefix}uInitrd
+
+echo "load ${devtype} ${devnum} ${kernel_addr_r} ${prefix}vmlinuz-${uname_r}"
 load ${devtype} ${devnum} ${kernel_addr_r} ${prefix}vmlinuz-${uname_r}
 
+echo "bootm ${kernel_addr_r} ${ramdisk_addr_r} ${fdt_addr_r}"
 bootm ${kernel_addr_r} ${ramdisk_addr_r} ${fdt_addr_r}
 
 # Recompile with:
