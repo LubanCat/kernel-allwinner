@@ -77,7 +77,7 @@ CONFIG_RWNX_MON_DATA =y
 
 # extra DEBUG config
 CONFIG_RWNX_SW_PROFILING ?= n
-CONFIG_RWNX_DBG ?= y
+CONFIG_RWNX_DBG ?= n
 
 obj-$(CONFIG_AIC8800_WLAN_SUPPORT) := aic8800_fdrv.o
 aic8800_fdrv-y := \
