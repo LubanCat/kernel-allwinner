@@ -58,7 +58,7 @@
 
 		led-sys {
 			label = "led_sys";
-			gpios =  <&pio PH 2 GPIO_ACTIVE_HIGH>;
+			gpios =  <&pio PF 6 GPIO_ACTIVE_HIGH>;
 			linux,default-trigger = "heartbeat";
 		};
 	};
