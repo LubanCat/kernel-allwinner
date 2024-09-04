@@ -304,22 +304,6 @@
 	};
 };
 
-&ac200 {
-	tv_used = <1>;
-	tv_twi_used = <1>;
-	tv_twi_id = <3>;
-	tv_twi_addr = <16>;
-	tv_pwm_ch = <5>;
-	status = "okay";
-};
-
-&pwm5 {
-	pinctrl-names = "active", "sleep";
-	pinctrl-0 = <&pwm5_pin_a>;
-	pinctrl-1 = <&pwm5_pin_b>;
-	status = "okay";
-};
-
 // PMIC TWI5
 &twi5 {
 	clock-frequency = <400000>;
@@ -538,7 +522,54 @@
 	status = "okay";
 };
 
-// 26PIN 3,5 TWI4/UART2
+&ac200 {
+	tv_used = <1>;
+	tv_twi_used = <1>;
+	tv_twi_id = <3>;
+	tv_twi_addr = <16>;
+	tv_pwm_ch = <5>;
+	status = "okay";
+};
+
+&pwm5 {
+	pinctrl-names = "active", "sleep";
+	pinctrl-0 = <&pwm5_pin_a>;
+	pinctrl-1 = <&pwm5_pin_b>;
+	status = "okay";
+};
+
+// SPI Flash
+&spi0 {
+	spi_slave_mode = <0>;
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&spi0_pins_a &spi0_pins_b>;
+	pinctrl-1 = <&spi0_pins_c>;
+	spi1_cs_number = <1>; //控制器cs脚数量
+	spi1_cs_bitmap = <1>; // cs0‑ 0x1; cs1‑0x2, cs0&cs1‑0x3.
+	status = "okay";
+
+	spi_board0@0 {
+		#address-cells = <1>;
+        #size-cells = <1>;
+		device_type = "spi_board0";
+        compatible = "spansion,m25p80", "jedec,spi-nor";	//CONFIG_MTD_SPI_NOR
+        reg = <0>;
+        spi-max-frequency = <40000000>;
+        m25p,fast-read;
+		spi-rx-bus-width = <0x1>;
+		spi-tx-bus-width = <0x1>;
+	};
+};
+
+// 40PIN 12 PWM1
+&pwm1 {
+	pinctrl-names = "active", "sleep";
+	pinctrl-0 = <&pwm1_pin_a>;
+	pinctrl-1 = <&pwm1_pin_b>;
+	status = "disabled";
+};
+
+// 40PIN 3,5 TWI4/UART2
 &twi4 {
 	clock-frequency = <400000>;
 	pinctrl-0 = <&twi4_pins_a>;
@@ -555,7 +586,7 @@
 	status = "disabled";
 };
 
-// 26PIN 6,8 UART5/TWI2
+// 40PIN 6,8 UART5/TWI2
 &uart5 {
 	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&uart5_ph_pins>;
@@ -572,7 +603,7 @@
 	status = "disabled";
 };
 
-// 26PIN 19,21,23,24,26 SPI1
+// 40PIN 19,21,23,24,26 SPI1
 &spi1 {
 	spi_slave_mode = <0>;
 	pinctrl-names = "default", "sleep";
@@ -598,29 +629,6 @@
 		compatible = "rohm,dh2228fv";
 		spi-max-frequency = <100000000>;
 		reg = <0x1>;
-		spi-rx-bus-width = <0x1>;
-		spi-tx-bus-width = <0x1>;
-	};
-};
-
-//flash
-&spi0 {
-	spi_slave_mode = <0>;
-	pinctrl-names = "default", "sleep";
-	pinctrl-0 = <&spi0_pins_a &spi0_pins_b>;
-	pinctrl-1 = <&spi0_pins_c>;
-	spi1_cs_number = <1>; //控制器cs脚数量
-	spi1_cs_bitmap = <1>; // cs0‑ 0x1; cs1‑0x2, cs0&cs1‑0x3.
-	status = "okay";
-
-	spi_board0@0 {
-		#address-cells = <1>;
-        #size-cells = <1>;
-		device_type = "spi_board0";
-        compatible = "spansion,m25p80", "jedec,spi-nor";	//CONFIG_MTD_SPI_NOR
-        reg = <0>;
-        spi-max-frequency = <40000000>;
-        m25p,fast-read;
 		spi-rx-bus-width = <0x1>;
 		spi-tx-bus-width = <0x1>;
 	};
