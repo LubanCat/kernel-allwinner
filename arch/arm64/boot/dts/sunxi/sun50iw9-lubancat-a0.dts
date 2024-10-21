@@ -401,6 +401,57 @@
 	power_io_ctrl = <0>;
 };
 
+/* audio dirver module -> audio codec */
+&codec {
+	lineout_vol	= <26>;
+	tx_hub_en;
+	status		= "okay";
+};
+
+&codec_plat {
+	status		= "okay";
+};
+
+&codec_mach {
+	status		= "okay";
+};
+
+/* audio dirver module -> audio hub */
+&ahub_dam_plat {
+	status		= "okay";
+};
+
+&ahub_dam_mach {
+	status		= "okay";
+};
+
+&ahub1_plat {
+	tdm_num		= <1>;
+	tx_pin		= <0>;
+	rx_pin		= <0>;
+	dai_type	= "hdmi";
+	status		= "okay";
+};
+
+&ahub1_mach {
+	status		= "okay";
+	soundcard-mach,format		= "i2s";
+	soundcard-mach,frame-master	= <&ahub1_cpu>;
+	soundcard-mach,bitclock-master	= <&ahub1_cpu>;
+	/* soundcard-mach,frame-inversion; */
+	/* soundcard-mach,bitclock-inversion; */
+	soundcard-mach,slot-num		= <2>;
+	soundcard-mach,slot-width	= <32>;
+	ahub1_cpu: soundcard-mach,cpu {
+		sound-dai = <&ahub1_plat>;
+		soundcard-mach,pll-fs	= <4>;	/* pll freq = 24.576M or 22.5792M * pll-fs */
+		soundcard-mach,mclk-fs	= <0>;	/* mclk freq = pcm rate * mclk-fs */
+	};
+	ahub1_codec: soundcard-mach,codec {
+	};
+};
+
+
 // Display Engine
 &disp {
 	disp_init_enable         = <1>;
