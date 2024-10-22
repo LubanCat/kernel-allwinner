@@ -16,7 +16,8 @@ void rwnx_plat_userconfig_parsing(char *buffer, int size);
 void rwnx_release_firmware_common(u32** buffer);
 
 extern int testmode;
-extern int chip_id;
+extern u8 chip_id;
+extern u8 chip_mcu_id;
 
 typedef u32 (*array2_tbl_t)[2];
 
@@ -38,6 +39,16 @@ typedef struct {
 #define AIC_PATCH_OFST(mem) ((size_t) &((aic_patch_t *)0)->mem)
 #define AIC_PATCH_ADDR(mem) ((u32) (aic_patch_str_base + AIC_PATCH_OFST(mem)))
 
+#define USER_PWROFST_COVER_CALIB_FLAG	0x01U
+#define USER_CHAN_MAX_TXPWR_EN_FLAG     (0x01U << 1)
+#define USER_TX_USE_ANA_F_FLAG          (0x01U << 2)
+
+#define CFG_PWROFST_COVER_CALIB     1
+#define CFG_USER_CHAN_MAX_TXPWR_EN  0
+#define CFG_USER_TX_USE_ANA_F       0
+
+#define CFG_USER_EXT_FLAGS_EN   (CFG_PWROFST_COVER_CALIB || CFG_USER_CHAN_MAX_TXPWR_EN || CFG_USER_TX_USE_ANA_F)
+
 u32 patch_tbl_d80[][2] =
 {
     #ifdef USE_5G
@@ -45,7 +56,25 @@ u32 patch_tbl_d80[][2] =
     #else
     {0x00b4, 0xf3010000},
     #endif
-    {0x0170, 0x00000001},//rx aggr counter
+#ifdef CONFIG_PLATFORM_HI
+    {0x0170, 0x00010001},//rx aggr counter
+#else
+    {0x0170, 0x0001000A},//rx aggr counter
+#endif
+
+    #if CFG_USER_EXT_FLAGS_EN
+    {0x0188, 0x00000000
+	#if CFG_PWROFST_COVER_CALIB
+	| USER_PWROFST_COVER_CALIB_FLAG
+	#endif
+        #if CFG_USER_CHAN_MAX_TXPWR_EN
+        | USER_CHAN_MAX_TXPWR_EN_FLAG
+        #endif
+        #if CFG_USER_TX_USE_ANA_F
+        | USER_TX_USE_ANA_F_FLAG
+        #endif
+    }, // user_ext_flags
+    #endif
 };
 
 //adap test
@@ -66,11 +95,16 @@ u32 syscfg_tbl_8800d80[][2] = {
 
 extern int adap_test;
 
+#define NEW_PATCH_BUFFER_MAP    1
+
 int aicwf_patch_config_8800d80(struct aic_usb_dev *usb_dev)
 {
     u32 rd_patch_addr;
     u32 aic_patch_addr;
     u32 config_base, aic_patch_str_base;
+    #if (NEW_PATCH_BUFFER_MAP)
+    u32 patch_buff_addr, patch_buff_base, rd_version_addr, rd_version_val;
+    #endif
     uint32_t start_addr = 0x001D7000;
     u32 patch_addr = start_addr;
     u32 patch_cnt = sizeof(patch_tbl_d80) / 4 / 2;
@@ -81,6 +115,7 @@ int aicwf_patch_config_8800d80(struct aic_usb_dev *usb_dev)
     int adap_patch_cnt = 0;
 
     if (adap_test) {
+        AICWFDBG(LOGINFO, "%s adap test \r\n", __func__);
         adap_patch_cnt = sizeof(adaptivity_patch_tbl_d80)/sizeof(u32)/2;
     }
 
@@ -105,6 +140,32 @@ int aicwf_patch_config_8800d80(struct aic_usb_dev *usb_dev)
     }
     AICWFDBG(LOGERROR, "%x=%x\n", rd_patch_addr_cfm.memaddr, rd_patch_addr_cfm.memdata);
     aic_patch_str_base = rd_patch_addr_cfm.memdata;
+
+    #if (NEW_PATCH_BUFFER_MAP)
+    if (chip_id == CHIP_REV_U01) {
+        rd_version_addr = RAM_FMAC_FW_ADDR_8800D80 + 0x01C;
+    } else {
+        rd_version_addr = RAM_FMAC_FW_ADDR_8800D80_U02 + 0x01C;
+    }
+    if ((ret = rwnx_send_dbg_mem_read_req(usb_dev, rd_version_addr, &rd_patch_addr_cfm))) {
+        AICWFDBG(LOGERROR, "version val[0x%x] rd fail: %d\n", rd_version_addr, ret);
+        return ret;
+    }
+    rd_version_val = rd_patch_addr_cfm.memdata;
+    AICWFDBG(LOGINFO, "rd_version_val=%08X\n", rd_version_val);
+    usb_dev->fw_version_uint = rd_version_val;
+    if (rd_version_val > 0x06090100) {
+        patch_buff_addr = rd_patch_addr + 12;
+        ret = rwnx_send_dbg_mem_read_req(usb_dev, patch_buff_addr, &rd_patch_addr_cfm);
+        if (ret) {
+            AICWFDBG(LOGERROR, "patch buf rd fail\n");
+            return ret;
+        }
+        AICWFDBG(LOGINFO, "%x=%x\n", rd_patch_addr_cfm.memaddr, rd_patch_addr_cfm.memdata);
+        patch_buff_base = rd_patch_addr_cfm.memdata;
+        patch_addr = start_addr = patch_buff_base;
+    }
+    #endif
 
     if ((ret = rwnx_send_dbg_mem_write_req(usb_dev, AIC_PATCH_ADDR(magic_num), AIC_PATCH_MAGIG_NUM))) {
         AICWFDBG(LOGERROR, "maigic_num[0x%x] write fail: %d\n", AIC_PATCH_ADDR(magic_num), ret);
@@ -230,8 +291,11 @@ int system_config_8800d80(struct aic_usb_dev *usb_dev){
 			printk("%x rd fail: %d\n", mem_addr, ret);
 			return ret;
 		}
+        if (((rd_mem_addr_cfm.memdata >> 25) & 0x01UL) == 0x00UL) {
+            chip_mcu_id = 1;
+        }
 		chip_id = (u8)(rd_mem_addr_cfm.memdata >> 16);
-		printk("chip_id=%x\n", chip_id);
+		printk("chip_id=%x, chip_mcu_id = %d\n", chip_id, chip_mcu_id);
     #if 1
 		syscfg_num = sizeof(syscfg_tbl_8800d80) / sizeof(u32) / 2;
 		for (cnt = 0; cnt < syscfg_num; cnt++) {
@@ -253,7 +317,6 @@ int system_config_8800d80(struct aic_usb_dev *usb_dev){
     #endif
     return 0;
 }
-
 
 
 int aicfw_download_fw_8800d80(struct aic_usb_dev *usb_dev)
@@ -319,8 +382,12 @@ int aicfw_download_fw_8800d80(struct aic_usb_dev *usb_dev)
                 return -1;
             }
             #endif
-            if(rwnx_plat_bin_fw_upload_android(usb_dev, RAM_FMAC_FW_ADDR_8800D80_U02, FW_BASE_NAME_8800D80_U02)) {
-                return -1;
+            if (IS_CHIP_ID_H()){
+                if(rwnx_plat_bin_fw_upload_android(usb_dev, RAM_FMAC_FW_ADDR_8800D80_U02, FW_BASE_NAME_8800D80_H_U02))
+                    return -1;
+            } else {
+                if(rwnx_plat_bin_fw_upload_android(usb_dev, RAM_FMAC_FW_ADDR_8800D80_U02, FW_BASE_NAME_8800D80_U02))
+                    return -1;
             }
             #if 0
             if(rwnx_plat_bin_fw_upload_android(usb_dev, FW_RAM_CALIBMODE_ADDR_8800D80_U02, FW_CALIBMODE_NAME_8800D80_U02)) {
@@ -377,6 +444,15 @@ int aicfw_download_fw_8800d80(struct aic_usb_dev *usb_dev)
                 return -1;
             }
 #endif
+
+            if (chip_mcu_id) {
+                int ret = 0;
+                ret = rwnx_plat_flash_bin_upload_android(usb_dev, FLASH_BIN_ADDR_8800M80, FLASH_BIN_8800M80);
+                if (ret && ret!= ENOENT) {
+                    AICWFDBG(LOGERROR,"%s flash bin download fail \r\n", __func__);
+                    return -1;
+                }
+            }
 
 			if(rwnx_plat_bin_fw_upload_android(usb_dev, RAM_FMAC_RF_FW_ADDR_8800D80_U02, FW_RF_BASE_NAME_8800D80_U02)) {
 				AICWFDBG(LOGERROR,"%s wifi fw download fail \r\n", __func__);
@@ -471,7 +547,7 @@ int aicfw_download_fw_8800d80(struct aic_usb_dev *usb_dev)
             /********************************************************************/
             //MAX_AD_FILTER_NUM=5 :num 4
             {
-                // const uint8_t data[11] = {0x59,0x4B,0x32,0x42,0x41,0x5F,0x54,0x45,0x53,0x54,0x33};
+                //const uint8_t data[11] = {0x59,0x4B,0x32,0x42,0x41,0x5F,0x54,0x45,0x53,0x54,0x33};
                 wakeup_param->ad_filter[4].ad_len = 0;
                 wakeup_param->ad_filter[4].ad_type = 0x09;
                 //memcpy(wakeup_param->ad_filter[4].ad_data, data,wakeup_param->ad_filter[4].ad_len-1);// 1111 1111 1110 0000 0000 0000 0000 0000 //0xffe00000

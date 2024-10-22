@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 #include <linux/nl80211.h>
 #include <net/cfg80211.h>
 #include <linux/version.h>
@@ -2867,6 +2866,7 @@ const struct ieee80211_regdomain *reg_regdb[] = {
 	&regdom_YT,
 	&regdom_ZA,
 	&regdom_ZW,
+	NULL,
 };
 
 int reg_regdb_size = ARRAY_SIZE(reg_regdb);

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /**
  * aicwf_usb.c
  *
@@ -26,6 +25,7 @@
 #include "aicbluetooth.h"
 #include "aicwf_debug.h"
 #include "aic_compat_8800d80.h"
+#include "aic_compat_8800d80x2.h"
 
 #define JUMP_TABLE_BASE   0x161928
 #define JUMP_TABLE_OFFSET(i) ((u32)(JUMP_TABLE_BASE+(i)*4))
@@ -38,6 +38,7 @@ extern uint32_t gpio_num;//default select gpiob2 for fw_wakeup_host
 extern uint32_t gpio_dft_lvl;//0:defalut pull down,  1:default pull up
 u8 chip_id = 0;
 u8 chip_sub_id = 0;
+u8 chip_mcu_id = 0;
 int fw_loaded = 0;
 
 void aicwf_usb_tx_flowctrl(struct aic_usb_dev *usb_dev, bool state)
@@ -839,12 +840,11 @@ static int aicwf_parse_usb(struct aic_usb_dev *usb_dev, struct usb_interface *in
 #endif
 #endif
 
-
-    if (usb->speed == USB_SPEED_HIGH) {
-        printk("Aic high speed USB device detected\n");
-    } else {
-        printk("Aic full speed USB device detected\n");
-    }
+    printk("Aic %s speed USB device detected\n", 
+            (usb->speed == USB_SPEED_SUPER) ? "super" :
+            (usb->speed == USB_SPEED_HIGH)  ? "high"  :
+            (usb->speed == USB_SPEED_FULL)  ? "full"  :
+            (usb->speed == USB_SPEED_LOW)   ? "low"   : "NG");
     exit:
     return ret;
 }
@@ -980,6 +980,14 @@ u32 patch_tbl[][2] ={
 #if !defined(CONFIG_LINK_DET_5G)
 {0x0104, 0x00000000}, //link_det_5g
 #endif
+#ifdef CONFIG_USB_SUSPEND_REBOOT_TIME
+{0x0110, 0x03e80001}//reboot time when usb suspend,0001 enables reboot on suspend, default 0x3e8 = 1000ms reboot
+#else
+#ifdef CONFIG_SUPPORT_USB_SUSP
+//USB SUSP keep working 0x0100:enable 0x0000:disable
+{0x0110, 0x00000100}
+#endif
+#endif
 };
 
 
@@ -1082,7 +1090,7 @@ static int system_config_8800(struct aic_usb_dev *usb_dev){
         printk("%x rd fail: %d\n", mem_addr, ret);
         return ret;
     }
-    chip_id = (u8)(rd_mem_addr_cfm.memdata >> 16);
+    chip_id =(u8)(rd_mem_addr_cfm.memdata >> 16);
     //printk("%x=%x\n", rd_mem_addr_cfm.memaddr, rd_mem_addr_cfm.memdata);
     ret = rwnx_send_dbg_mem_read_req(usb_dev, 0x00000004, &rd_mem_addr_cfm);
     if (ret) {
@@ -1131,6 +1139,8 @@ static int system_config(struct aic_usb_dev *usb_dev)
         return system_config_8800(usb_dev);
     }else if(usb_dev->chipid == PRODUCT_ID_AIC8800D80){
         return system_config_8800d80(usb_dev);
+    }else if(usb_dev->chipid == PRODUCT_ID_AIC8800D80X2){
+        return system_config_8800d80x2(usb_dev);
     }else{
         return -1;
     }
@@ -1321,20 +1331,32 @@ static int aicloadfw_chipmatch(struct aic_usb_dev *usb_dev, u16 vid, u16 pid){
 
     if(pid == USB_DEVICE_ID_AIC){
         usb_dev->chipid = PRODUCT_ID_AIC8800;
-		AICWFDBG(LOGINFO, "%s USE AIC8800\r\n", __func__);
-		return 0;
-	}else if(pid == USB_DEVICE_ID_AIC_8801){
-		usb_dev->chipid = PRODUCT_ID_AIC8801;
-		AICWFDBG(LOGINFO, "%s USE AIC8801\r\n", __func__);
-		return 0;
-	}else if(pid == USB_DEVICE_ID_AIC_8800D80){
-		usb_dev->chipid = PRODUCT_ID_AIC8800D80;
-		AICWFDBG(LOGINFO, "%s USE AIC8800D80\r\n", __func__);
-		return 0;
-	}else if(pid == USB_DEVICE_ID_AIC_8800D81){
+	AICWFDBG(LOGINFO, "%s USE AIC8800\r\n", __func__);
+	return 0;
+    }else if(pid == USB_DEVICE_ID_AIC_8801){
+	usb_dev->chipid = PRODUCT_ID_AIC8801;
+	AICWFDBG(LOGINFO, "%s USE AIC8801\r\n", __func__);
+	return 0;
+    }else if(pid == USB_DEVICE_ID_AIC_8800D80){
+	usb_dev->chipid = PRODUCT_ID_AIC8800D80;
+	AICWFDBG(LOGINFO, "%s USE AIC8800D80\r\n", __func__);
+	return 0;
+    }else if(pid == USB_DEVICE_ID_AIC_8800D81){
         usb_dev->chipid = PRODUCT_ID_AIC8800D81;
-		AICWFDBG(LOGINFO, "%s USE AIC8800D81\r\n", __func__);
+	AICWFDBG(LOGINFO, "%s USE AIC8800D81\r\n", __func__);
         return 0;
+    }else if(pid == USB_DEVICE_ID_AIC_8800D40){
+        usb_dev->chipid = PRODUCT_ID_AIC8800D80;
+        AICWFDBG(LOGINFO, "%s USE AIC8800D40\r\n", __func__);
+        return 0;
+    }else if(pid == USB_DEVICE_ID_AIC_8800D41){
+	usb_dev->chipid = PRODUCT_ID_AIC8800D81;
+	AICWFDBG(LOGINFO, "%s USE AIC8800D41\r\n", __func__);
+	return 0;
+    }else if(pid == USB_DEVICE_ID_AIC_8800D80X2 && vid == USB_VENDOR_ID_AIC_V2){
+		usb_dev->chipid = PRODUCT_ID_AIC8800D80X2;
+		AICWFDBG(LOGINFO, "%s USE AIC8800D80X2\r\n", __func__);
+		return 0;
     }else{
         return -1;
     }
@@ -1488,7 +1510,7 @@ int aicfw_download_fw_8800(struct aic_usb_dev *usb_dev){
             /********************************************************************/
             //MAX_AD_FILTER_NUM=5 :num 4
             {
-                // const uint8_t data[11] = {0x59,0x4B,0x32,0x42,0x41,0x5F,0x54,0x45,0x53,0x54,0x33};
+                //const uint8_t data[11] = {0x59,0x4B,0x32,0x42,0x41,0x5F,0x54,0x45,0x53,0x54,0x33};
                 wakeup_param->ad_filter[4].ad_len = 0;
                 wakeup_param->ad_filter[4].ad_type = 0x09;
                 //memcpy(wakeup_param->ad_filter[4].ad_data, data,wakeup_param->ad_filter[4].ad_len-1);// 1111 1111 1110 0000 0000 0000 0000 0000 //0xffe00000
@@ -1570,6 +1592,8 @@ int aicfw_download_fw(struct aic_usb_dev *usb_dev)
         return aicfw_download_fw_8800(usb_dev);
     }else if(usb_dev->chipid == PRODUCT_ID_AIC8800D80){
         return aicfw_download_fw_8800d80(usb_dev);
+    }else if(usb_dev->chipid == PRODUCT_ID_AIC8800D80X2){
+        return aicfw_download_fw_8800d80x2(usb_dev);
     }else{
         return -1;
     }
@@ -1595,7 +1619,8 @@ static int aicwf_usb_probe(struct usb_interface *intf, const struct usb_device_i
 
 	if(fw_loaded == 1 && 
         (id->idProduct == USB_DEVICE_ID_AIC_8801 || 
-        id->idProduct == USB_DEVICE_ID_AIC_8800D81)){
+        id->idProduct == USB_DEVICE_ID_AIC_8800D81 ||
+	id->idProduct == USB_DEVICE_ID_AIC_8800D41)){
 		return -1;
 	}
 
@@ -1662,8 +1687,8 @@ static int aicwf_usb_probe(struct usb_interface *intf, const struct usb_device_i
 
     aic_bt_platform_init(usb_dev);
 
-    if (usb->speed != USB_SPEED_HIGH) {
-        printk("Aic full speed USB device detected\n");
+    if ((usb->speed != USB_SPEED_HIGH) && (usb->speed != USB_SPEED_SUPER)) {
+        printk("Aic USB device detected speed = %d\n", usb->speed);
         system_reboot(usb_dev);
         goto out_free_bus;
     }
@@ -1751,6 +1776,9 @@ static struct usb_device_id aicwf_usb_id_table[] = {
     {USB_DEVICE(USB_VENDOR_ID_AIC, USB_DEVICE_ID_AIC_8801)},
     {USB_DEVICE(USB_VENDOR_ID_AIC, USB_DEVICE_ID_AIC_8800D80)},
     {USB_DEVICE(USB_VENDOR_ID_AIC, USB_DEVICE_ID_AIC_8800D81)},
+    {USB_DEVICE(USB_VENDOR_ID_AIC, USB_DEVICE_ID_AIC_8800D40)},
+    {USB_DEVICE(USB_VENDOR_ID_AIC, USB_DEVICE_ID_AIC_8800D41)},
+    {USB_DEVICE(USB_VENDOR_ID_AIC_V2, USB_DEVICE_ID_AIC_8800D80X2)},
     {}
 };
 

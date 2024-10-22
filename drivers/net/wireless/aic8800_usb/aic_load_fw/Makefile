@@ -1,5 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-or-later
-
 CONFIG_USB_SUPPORT =y
 CONFIG_RFTEST =y
 CONFIG_USB_BT =y
@@ -7,21 +5,25 @@ CONFIG_USB_MSG_EP = y
 CONFIG_USB_NO_TRANS_DMA_MAP = n
 CONFIG_M2D_OTA_AUTO_SUPPORT = n
 CONFIG_LINK_DET_5G = y
+CONFIG_FOR_IPCAM = n
+CONFIG_USB_SUSPEND_REBOOT_TIME = n
+CONFIG_SUPPORT_USB_SUSP = n
+
+
 # Need to set fw path in BOARD_KERNEL_CMDLINE
-CONFIG_USE_FW_REQUEST = n
-CONFIG_PREALLOC_RX_SKB = n
-CONFIG_PREALLOC_TXQ = y
+CONFIG_USE_FW_REQUEST ?= n
+CONFIG_PREALLOC_RX_SKB ?= n
+CONFIG_PREALLOC_TXQ ?= y
 
 # Platform support list
 CONFIG_PLATFORM_ROCKCHIP ?= n
-CONFIG_PLATFORM_ALLWINNER ?= y
+CONFIG_PLATFORM_ALLWINNER ?= n
 CONFIG_PLATFORM_AMLOGIC ?= n
-CONFIG_PLATFORM_UBUNTU ?= n
+CONFIG_PLATFORM_HI ?= n
+CONFIG_PLATFORM_UBUNTU ?= y
 
 CONFIG_AIC_LOADFW_SUPPORT = m
 MODULE_NAME = aic_load_fw
-# CONFIG_AIC_FW_PATH = "/vendor/etc/firmware"
-# export CONFIG_AIC_FW_PATH
 
 ifeq ($(CONFIG_USB_SUPPORT), y)
 ccflags-y += -DAICWF_USB_SUPPORT
@@ -32,9 +34,12 @@ ccflags-$(CONFIG_USB_MSG_EP) += -DCONFIG_USB_MSG_EP
 ccflags-$(CONFIG_USB_NO_TRANS_DMA_MAP) += -DCONFIG_USB_NO_TRANS_DMA_MAP
 ccflags-$(CONFIG_M2D_OTA_AUTO_SUPPORT) += -DCONFIG_M2D_OTA_AUTO_SUPPORT
 ccflags-$(CONFIG_LINK_DET_5G) += -DCONFIG_LINK_DET_5G
+ccflags-$(CONFIG_FOR_IPCAM) += -DCONFIG_FOR_IPCAM
 ccflags-$(CONFIG_USE_FW_REQUEST) += -DCONFIG_USE_FW_REQUEST
 ccflags-$(CONFIG_PREALLOC_RX_SKB) += -DCONFIG_PREALLOC_RX_SKB
 ccflags-$(CONFIG_PREALLOC_TXQ) += -DCONFIG_PREALLOC_TXQ
+ccflags-$(CONFIG_USB_SUSPEND_REBOOT_TIME) += -DCONFIG_USB_SUSPEND_REBOOT_TIME
+ccflags-$(CONFIG_SUPPORT_USB_SUSP) += -DCONFIG_SUPPORT_USB_SUSP
 
 
 obj-$(CONFIG_AIC_LOADFW_SUPPORT) := $(MODULE_NAME).o
@@ -44,6 +49,7 @@ $(MODULE_NAME)-y := 	aic_bluetooth_main.o \
 					aic_txrxif.o \
 					aicbluetooth_cmds.o \
 					aic_compat_8800d80.o \
+					aic_compat_8800d80x2.o \
 					md5.o
 
 $(MODULE_NAME)-$(CONFIG_PREALLOC_RX_SKB)	 += aicwf_rx_prealloc.o
@@ -85,7 +91,8 @@ KDIR  := /lib/modules/$(shell uname -r)/build
 PWD   := $(shell pwd)
 KVER := $(shell uname -r)
 MODDESTDIR := /lib/modules/$(KVER)/kernel/drivers/net/wireless/aic8800
-ARCH := arm64
+SUBARCH = $(shell uname -m | sed -e s/i.86/i386/ -e s/armv.l/arm/ -e s/aarch64/arm64/)
+ARCH ?= $(SUBARCH)
 CROSS_COMPILE :=
 endif
 

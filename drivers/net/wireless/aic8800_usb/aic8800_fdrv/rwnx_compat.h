@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /**
  ******************************************************************************
  *
@@ -245,6 +244,11 @@ enum ieee80211_radiotap_he_mu_bits {
 #define REGULATORY_IGNORE_STALE_KICKOFF 0
 #else
 #define STA_TDLS_INITIATOR(sta) sta->tdls_initiator
+
+#ifndef REGULATORY_IGNORE_STALE_KICKOFF
+#define REGULATORY_IGNORE_STALE_KICKOFF 0
+#endif
+
 #endif
 
 
