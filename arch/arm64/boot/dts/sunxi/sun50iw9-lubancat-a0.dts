@@ -63,6 +63,7 @@
 			gpios = <&pio PH 3 GPIO_ACTIVE_LOW>;
 			linux,default-trigger = "netdev";
 			default-state = "off";
+			status = "disabled";
 		};
 
 		100m_act {
@@ -70,6 +71,7 @@
 			gpios = <&pio PH 2 GPIO_ACTIVE_LOW>;
 			linux,default-trigger = "netdev";
 			default-state = "off";
+			status = "disabled";
 		};
 	};
 };
