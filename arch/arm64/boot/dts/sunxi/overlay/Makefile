@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 dtbo-$(CONFIG_ARCH_SUNXI) += \
 	h618-lubancat-i2c2-overlay.dtbo \
+	h618-lubancat-i2c3-overlay.dtbo \
 	h618-lubancat-i2c4-overlay.dtbo \
 	h618-lubancat-pwm1-overlay.dtbo \
 	h618-lubancat-spi1-overlay.dtbo \

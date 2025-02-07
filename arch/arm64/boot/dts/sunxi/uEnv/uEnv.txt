@@ -5,3 +5,11 @@ disp_mode=1080p60
 fb0_width=1920
 fb0_height=1080
 debug_uart=ttyAS0
+#26pin
+overlays=
+#格式:overlays=xxx.dtbo xxx.dtbo xxx.dtbo 
+#2选1:h618-lubancat-i2c4-overlay.dtbo h618-lubancat-uart2-overlay.dtbo
+#2选1:h618-lubancat-i2c2-overlay.dtbo h618-lubancat-uart5-overlay.dtbo
+#h618-lubancat-spi1-overlay.dtbo
+#h618-lubancat-pwm1-overlay.dtbo
+#仅luabancat-A0有:h618-lubancat-i2c3-overlay.dtbo
