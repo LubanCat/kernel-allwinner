@@ -50,6 +50,12 @@
 #include <linux/of_address.h>
 #include <linux/regulator/consumer.h>
 
+#define I2C_SUNXI_DEBUG_ERROR_ON 0
+#define I2C_SUNXI_DEV_ERR(dev, fmt, arg...) do { \
+                                              if (I2C_SUNXI_DEBUG_ERROR_ON) \
+                                                  dev_err(dev, fmt, ##arg); \
+                                          } while (0)
+
 /* I2C Register Offset */
 /*  31:8bit reserved,7-1bit for slave addr,0 bit for GCE */
 #define I2C_ADDR		(0x00)
@@ -766,7 +772,7 @@ static int sunxi_i2c_engine_start(struct sunxi_i2c *i2c)
 	while ((sunxi_i2c_engine_get_start(i2c->base_addr) == 1) && (--timeout))
 		;
 	if (timeout == 0) {
-		dev_err(i2c->dev, "engine-mode: START can't sendout!\n");
+		I2C_SUNXI_DEV_ERR(i2c->dev, "engine-mode: START can't sendout!\n");
 		return -EINVAL;
 	}
 
@@ -783,7 +789,7 @@ static int sunxi_i2c_engine_restart(struct sunxi_i2c *i2c)
 	while ((sunxi_i2c_engine_get_start(i2c->base_addr) == 1) && (--timeout))
 		;
 	if (timeout == 0) {
-		dev_err(i2c->dev, "engine-mode: Restart can't sendout!\n");
+		I2C_SUNXI_DEV_ERR(i2c->dev, "engine-mode: Restart can't sendout!\n");
 		return -EINVAL;
 	}
 
@@ -805,7 +811,7 @@ static int sunxi_i2c_engine_stop(struct sunxi_i2c *i2c)
 	while ((sunxi_i2c_engine_get_stop(base_addr) == 1) && (--timeout))
 		;
 	if (timeout == 0) {
-		dev_err(i2c->dev, "engine-mode: STOP can't sendout!\n");
+		I2C_SUNXI_DEV_ERR(i2c->dev, "engine-mode: STOP can't sendout!\n");
 		return -EINVAL;
 	}
 
@@ -813,7 +819,7 @@ static int sunxi_i2c_engine_stop(struct sunxi_i2c *i2c)
 	while ((sunxi_i2c_get_xfer_sta(i2c) != I2C_STAT_IDLE) && (--timeout))
 		;
 	if (timeout == 0) {
-		dev_err(i2c->dev, "engine-mode: bus state: 0x%0x, isn't idle\n",
+		I2C_SUNXI_DEV_ERR(i2c->dev, "engine-mode: bus state: 0x%0x, isn't idle\n",
 			sunxi_i2c_get_xfer_sta(i2c));
 		return -EINVAL;
 	}
@@ -1223,7 +1229,7 @@ static int sunxi_i2c_drv_send_msg(struct sunxi_i2c *i2c, struct i2c_msg *msg)
 			dev_dbg(i2c->dev, "drv-mode: write Byte[%u]=0x%x,tx fifo len=%d\n",
 				i, msg->buf[i], sunxi_i2c_drv_get_txfifo_cnt(i2c->base_addr));
 		} else {
-			dev_err(i2c->dev, "drv-mode: SEND FIFO overflow, timeout\n");
+			I2C_SUNXI_DEV_ERR(i2c->dev, "drv-mode: SEND FIFO overflow, timeout\n");
 			return -EINVAL;
 		}
 	}
@@ -1247,7 +1253,7 @@ static u32 sunxi_i2c_drv_recv_msg(struct sunxi_i2c *i2c, struct i2c_msg *msg)
 			dev_dbg(i2c->dev, "drv-mode: readb: Byte[%d] = 0x%x\n",
 					i, msg->buf[i]);
 		} else {
-			dev_err(i2c->dev, "drv-mode: rerceive fifo empty. timeout\n");
+			I2C_SUNXI_DEV_ERR(i2c->dev, "drv-mode: rerceive fifo empty. timeout\n");
 			return -EINVAL;
 		}
 	}
@@ -1265,12 +1271,12 @@ static int sunxi_i2c_dma_request(struct sunxi_i2c *i2c, dma_addr_t phy_addr)
 	dma_tx = devm_kzalloc(i2c->dev, sizeof(*dma_tx), GFP_KERNEL);
 	dma_rx = devm_kzalloc(i2c->dev, sizeof(*dma_rx), GFP_KERNEL);
 	if (IS_ERR_OR_NULL(dma_tx) || IS_ERR_OR_NULL(dma_rx)) {
-		dev_err(i2c->dev, "dma kzalloc failed\n");
+		I2C_SUNXI_DEV_ERR(i2c->dev, "dma kzalloc failed\n");
 		return -EINVAL;
 	}
 	dma_tx->chan = dma_request_chan(i2c->dev, "tx");
 	if (IS_ERR(dma_tx->chan)) {
-		dev_err(i2c->dev, "can't request DMA tx channel\n");
+		I2C_SUNXI_DEV_ERR(i2c->dev, "can't request DMA tx channel\n");
 		err = PTR_ERR(dma_tx->chan);
 		goto err0;
 	}
@@ -1283,14 +1289,14 @@ static int sunxi_i2c_dma_request(struct sunxi_i2c *i2c, dma_addr_t phy_addr)
 	dma_sconfig.direction = DMA_MEM_TO_DEV;
 	err = dmaengine_slave_config(dma_tx->chan, &dma_sconfig);
 	if (err < 0) {
-		dev_err(i2c->dev, "can't configure tx channel\n");
+		I2C_SUNXI_DEV_ERR(i2c->dev, "can't configure tx channel\n");
 		goto err1;
 	}
 	i2c->dma_tx = dma_tx;
 
 	dma_rx->chan = dma_request_chan(i2c->dev, "rx");
 	if (IS_ERR(dma_rx->chan)) {
-		dev_err(i2c->dev, "can't request DMA rx channel\n");
+		I2C_SUNXI_DEV_ERR(i2c->dev, "can't request DMA rx channel\n");
 		goto err1;
 	}
 	dma_sconfig.src_addr = phy_addr + I2C_DRV_RECV_FIFO_ACC;
@@ -1301,7 +1307,7 @@ static int sunxi_i2c_dma_request(struct sunxi_i2c *i2c, dma_addr_t phy_addr)
 	dma_sconfig.direction = DMA_DEV_TO_MEM;
 	err = dmaengine_slave_config(dma_rx->chan, &dma_sconfig);
 	if (err < 0) {
-		dev_err(i2c->dev, "can't configure rx channel\n");
+		I2C_SUNXI_DEV_ERR(i2c->dev, "can't configure rx channel\n");
 		goto err2;
 	}
 	i2c->dma_rx = dma_rx;
@@ -1343,9 +1349,9 @@ static void sunxi_i2c_dma_callback(void *arg)
 	struct sunxi_i2c *i2c = (struct sunxi_i2c *)arg;
 
 	if (i2c->dma_using == i2c->dma_tx)
-		dev_err(i2c->dev, "drv-mode: dma write data end\n");
+		I2C_SUNXI_DEV_ERR(i2c->dev, "drv-mode: dma write data end\n");
 	else if (i2c->dma_using == i2c->dma_rx)
-		dev_err(i2c->dev, "drv-mode: dma read data end\n");
+		I2C_SUNXI_DEV_ERR(i2c->dev, "drv-mode: dma read data end\n");
 }
 
 /* make preparetions for dma transfer
@@ -1377,7 +1383,7 @@ static int sunxi_i2c_drv_dma_xfer_init(struct sunxi_i2c *i2c, bool read)
 	dma->dma_buf = dma_map_single(chan_dev, i2c->dma_buf,
 					dma->dma_len, dma->dma_data_dir);
 	if (dma_mapping_error(chan_dev, dma->dma_buf)) {
-		dev_err(i2c->dev, "DMA mapping failed\n");
+		I2C_SUNXI_DEV_ERR(i2c->dev, "DMA mapping failed\n");
 		ret = -EINVAL;
 		goto err0;
 	}
@@ -1385,14 +1391,14 @@ static int sunxi_i2c_drv_dma_xfer_init(struct sunxi_i2c *i2c, bool read)
 					       dma->dma_len, dma->dma_transfer_dir,
 					       DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
 	if (!dma_desc) {
-		dev_err(i2c->dev, "Not able to get desc for DMA xfer\n");
+		I2C_SUNXI_DEV_ERR(i2c->dev, "Not able to get desc for DMA xfer\n");
 		ret = -EINVAL;
 		goto err0;
 	}
 	dma_desc->callback = sunxi_i2c_dma_callback;
 	dma_desc->callback_param = i2c;
 	if (dma_submit_error(dmaengine_submit(dma_desc))) {
-		dev_err(i2c->dev, "DMA submit failed\n");
+		I2C_SUNXI_DEV_ERR(i2c->dev, "DMA submit failed\n");
 		ret = -EINVAL;
 		goto err0;
 	}
@@ -1480,20 +1486,20 @@ static int sunxi_i2c_drv_complete(struct sunxi_i2c *i2c)
 
 	timeout = wait_event_timeout(i2c->wait, i2c->result, i2c->adap.timeout);
 	if (timeout == 0) {
-		dev_err(i2c->dev, "drv-mode: xfer timeout (dev addr:0x%x)\n",
+		I2C_SUNXI_DEV_ERR(i2c->dev, "drv-mode: xfer timeout (dev addr:0x%x)\n",
 				i2c->msg->addr);
 		sunxi_i2c_dump_reg(i2c, 0x200, 0x20);
 		ret = -ETIME;
 	} else {
 		if (i2c->result == RESULT_ERR) {
-			dev_err(i2c->dev, "drv-mode: xfer failed (dev addr:0x%x)\n",
+			I2C_SUNXI_DEV_ERR(i2c->dev, "drv-mode: xfer failed (dev addr:0x%x)\n",
 					i2c->msg->addr);
 			sunxi_i2c_dump_reg(i2c, 0x200, 0x20);
 			ret = -EINVAL;
 		} else if (i2c->result == RESULT_COMPLETE) {
 			dev_dbg(i2c->dev, "drv-mode: xfer complete\n");
 		} else {
-			dev_err(i2c->dev, "drv-mode: result err\n");
+			I2C_SUNXI_DEV_ERR(i2c->dev, "drv-mode: result err\n");
 			ret = -EINVAL;
 		}
 	}
@@ -1513,19 +1519,19 @@ static int sunxi_i2c_engine_complete(struct sunxi_i2c *i2c)
 
 	timeout = wait_event_timeout(i2c->wait, i2c->result, i2c->adap.timeout);
 	if (timeout == 0) {
-		dev_err(i2c->dev, "engine-mode: xfer timeout(dev addr:0x%x)\n",
+		I2C_SUNXI_DEV_ERR(i2c->dev, "engine-mode: xfer timeout(dev addr:0x%x)\n",
 				i2c->msg->addr);
 		sunxi_i2c_dump_reg(i2c, 0x00, 0x20);
 		ret = -ETIME;
 	} else {
 		if (i2c->result == RESULT_ERR) {
-			dev_err(i2c->dev, "engine-mode: xfer failed(dev addr:0x%x)\n",
+			I2C_SUNXI_DEV_ERR(i2c->dev, "engine-mode: xfer failed(dev addr:0x%x)\n",
 					i2c->msg->addr);
 			sunxi_i2c_dump_reg(i2c, 0x00, 0x20);
 			ret = -EINVAL;
 		} else if (i2c->result == RESULT_COMPLETE) {
 			if (i2c->msg_idx != i2c->msg_num) {
-				dev_err(i2c->dev, "engine-mode: xfer incomplete(dev addr:0x%x\n",
+				I2C_SUNXI_DEV_ERR(i2c->dev, "engine-mode: xfer incomplete(dev addr:0x%x\n",
 					i2c->msg->addr);
 				ret = -EINVAL;
 			} else {
@@ -1533,7 +1539,7 @@ static int sunxi_i2c_engine_complete(struct sunxi_i2c *i2c)
 				ret = i2c->msg_idx;
 			}
 		} else {
-			dev_err(i2c->dev, "engine-mode: result err\n");
+			I2C_SUNXI_DEV_ERR(i2c->dev, "engine-mode: result err\n");
 			ret = -EINVAL;
 		}
 	}
@@ -1574,32 +1580,32 @@ static int sunxi_i2c_drv_core_process(struct sunxi_i2c *i2c)
 		err_sta = sunxi_i2c_get_xfer_sta(i2c);
 		switch (err_sta) {
 		case 0x00:
-			dev_err(i2c->dev, "drv-mode: bus error\n");
+			I2C_SUNXI_DEV_ERR(i2c->dev, "drv-mode: bus error\n");
 			break;
 		case 0x01:
-			dev_err(i2c->dev, "drv-mode: Timeout when sending 9th SCL clk\n");
+			I2C_SUNXI_DEV_ERR(i2c->dev, "drv-mode: Timeout when sending 9th SCL clk\n");
 			break;
 		case 0x20:
-			dev_err(i2c->dev, "drv-mode: Address + Write bit transmitted,"
+			I2C_SUNXI_DEV_ERR(i2c->dev, "drv-mode: Address + Write bit transmitted,"
 					"ACK not received\n");
 			break;
 		case 0x30:
-			dev_err(i2c->dev, "drv-mode: Data byte transmitted in master mode,"
+			I2C_SUNXI_DEV_ERR(i2c->dev, "drv-mode: Data byte transmitted in master mode,"
 				"ACK not received\n");
 			break;
 		case 0x38:
-			dev_err(i2c->dev, "drv-mode: Arbitration lost in address, or data byte\n");
+			I2C_SUNXI_DEV_ERR(i2c->dev, "drv-mode: Arbitration lost in address, or data byte\n");
 			break;
 		case 0x48:
-			dev_err(i2c->dev, "drv-mode: Address + Read bit transmitted,"
+			I2C_SUNXI_DEV_ERR(i2c->dev, "drv-mode: Address + Read bit transmitted,"
 				"ACK not received\\n");
 			break;
 		case 0x58:
-			dev_err(i2c->dev, "drv-mode: Data byte received in master mode,"
+			I2C_SUNXI_DEV_ERR(i2c->dev, "drv-mode: Data byte received in master mode,"
 				"ACK not received\n");
 			break;
 		default:
-			dev_err(i2c->dev, "drv-mode: unknown error\n");
+			I2C_SUNXI_DEV_ERR(i2c->dev, "drv-mode: unknown error\n");
 			break;
 		}
 
@@ -1622,7 +1628,7 @@ static int sunxi_i2c_engine_core_process(struct sunxi_i2c *i2c)
 	void __iomem *base_addr = i2c->base_addr;
 
 	if (i2c->msg == NULL) {
-		dev_err(i2c->dev, "i2c message is NULL\n");
+		I2C_SUNXI_DEV_ERR(i2c->dev, "i2c message is NULL\n");
 		goto out_failed;
 	}
 
@@ -1669,7 +1675,7 @@ static int sunxi_i2c_engine_core_process(struct sunxi_i2c *i2c)
 			} else if (i2c->msg_idx < i2c->msg_num) {
 				/* for restart pattern, read spec, two msgs */
 				if (sunxi_i2c_engine_restart(i2c)) {
-					dev_err(i2c->dev, "when the %d msg xfering, start failed",
+					I2C_SUNXI_DEV_ERR(i2c->dev, "when the %d msg xfering, start failed",
 							i2c->msg_idx);
 					goto out_failed;
 				}
@@ -1718,7 +1724,7 @@ static int sunxi_i2c_engine_core_process(struct sunxi_i2c *i2c)
 				goto out_success;
 			} else if (i2c->msg_idx < i2c->msg_num) { /* repeat start */
 				if (sunxi_i2c_engine_restart(i2c)) {
-					dev_err(i2c->dev, "when the %d msg xfering, start failed",
+					I2C_SUNXI_DEV_ERR(i2c->dev, "when the %d msg xfering, start failed",
 							i2c->msg_idx);
 					goto out_failed;
 				}
@@ -1731,23 +1737,23 @@ static int sunxi_i2c_engine_core_process(struct sunxi_i2c *i2c)
 		}
 
 	case 0xd8:
-		dev_err(i2c->dev, "second addr has transmitted, ACK not received!");
+		I2C_SUNXI_DEV_ERR(i2c->dev, "second addr has transmitted, ACK not received!");
 		goto out_failed;
 
 	case 0x20:
-		dev_err(i2c->dev, "SLA+W has been transmitted; ACK not received\n");
+		I2C_SUNXI_DEV_ERR(i2c->dev, "SLA+W has been transmitted; ACK not received\n");
 		goto out_failed;
 
 	case 0x30:
-		dev_err(i2c->dev, "DATA byte transmitted, ACK not receive\n");
+		I2C_SUNXI_DEV_ERR(i2c->dev, "DATA byte transmitted, ACK not receive\n");
 		goto out_failed;
 
 	case 0x38:
-		dev_err(i2c->dev, "Arbitration lost in SLA+W, SLA+R or data bytes\n");
+		I2C_SUNXI_DEV_ERR(i2c->dev, "Arbitration lost in SLA+W, SLA+R or data bytes\n");
 		goto out_failed;
 
 	case 0x00:
-		dev_err(i2c->dev, "Bus error\n");
+		I2C_SUNXI_DEV_ERR(i2c->dev, "Bus error\n");
 		goto out_failed;
 
 	default:
@@ -1769,7 +1775,7 @@ out_break:
 /* xfer failed, then send stop and wakeup */
 out_failed:
 	if (sunxi_i2c_engine_stop(i2c))
-		dev_err(i2c->dev, "STOP failed!\n");
+		I2C_SUNXI_DEV_ERR(i2c->dev, "STOP failed!\n");
 
 	i2c->msg_idx = -state;
 	i2c->result = RESULT_ERR;
@@ -1781,7 +1787,7 @@ out_failed:
 /* xfer success, then send wtop and wakeup */
 out_success:
 	if (sunxi_i2c_engine_stop(i2c))
-		dev_err(i2c->dev, "STOP failed!\n");
+		I2C_SUNXI_DEV_ERR(i2c->dev, "STOP failed!\n");
 
 	i2c->result = RESULT_COMPLETE;
 	i2c->debug_state = state;
@@ -1800,7 +1806,7 @@ static irqreturn_t sunxi_i2c_handler(int this_irq, void *dev_id)
 	} else if (ret == 1) {
 		sunxi_i2c_drv_core_process(i2c);
 	} else {
-		dev_err(i2c->dev, "wrong irq, check irq number!!\n");
+		I2C_SUNXI_DEV_ERR(i2c->dev, "wrong irq, check irq number!!\n");
 		return IRQ_NONE;
 	}
 
@@ -1843,7 +1849,7 @@ static int sunxi_i2c_drv_tx_one_msg(struct sunxi_i2c *i2c, struct i2c_msg *msg)
 
 		ret = sunxi_i2c_drv_dma_xfer_init(i2c, I2C_WRITE);
 		if (ret) {
-			dev_err(i2c->dev, "dma tx xfer init failed\n");
+			I2C_SUNXI_DEV_ERR(i2c->dev, "dma tx xfer init failed\n");
 			goto err_dma;
 		}
 
@@ -1909,13 +1915,13 @@ sunxi_i2c_drv_rx_msgs(struct sunxi_i2c *i2c, struct i2c_msg *msgs, int num)
 		dev_dbg(i2c->dev, "drv-mode: two-msg read slave_addr=0x%x, data_len=0x%x\n",
 				rmsg->addr,  rmsg->len);
 		if (wmsg->addr != rmsg->addr) {
-			dev_err(i2c->dev, "drv-mode: two msg's addr must be the same\n");
+			I2C_SUNXI_DEV_ERR(i2c->dev, "drv-mode: two msg's addr must be the same\n");
 			return -EINVAL;
 		}
 		sunxi_i2c_drv_disable_read_mode(i2c->base_addr);
 		sunxi_i2c_drv_set_addr_byte(i2c->base_addr, wmsg->len);
 	} else {
-		dev_err(i2c->dev, "i2c read xfer can not transfer %d msgs once", num);
+		I2C_SUNXI_DEV_ERR(i2c->dev, "i2c read xfer can not transfer %d msgs once", num);
 		return -EINVAL;
 	}
 
@@ -1936,7 +1942,7 @@ sunxi_i2c_drv_rx_msgs(struct sunxi_i2c *i2c, struct i2c_msg *msgs, int num)
 
 		ret = sunxi_i2c_drv_dma_xfer_init(i2c, I2C_READ);
 		if (ret) {
-			dev_err(i2c->dev, "dma rx xfer init failed\n");
+			I2C_SUNXI_DEV_ERR(i2c->dev, "dma rx xfer init failed\n");
 			goto err_dma;
 		}
 
@@ -2036,7 +2042,7 @@ sunxi_i2c_engine_xfer(struct sunxi_i2c *i2c, struct i2c_msg *msgs, int num)
 	/* then send START signal, and needn't clear int flag */
 	ret = sunxi_i2c_engine_start(i2c);
 	if (ret) {
-		dev_err(i2c->dev, "i2c failed to send start signal\n");
+		I2C_SUNXI_DEV_ERR(i2c->dev, "i2c failed to send start signal\n");
 		sunxi_i2c_soft_reset(i2c);
 		sunxi_i2c_engine_disable_irq(i2c->base_addr);
 		i2c->status = I2C_XFER_IDLE;
@@ -2061,7 +2067,7 @@ sunxi_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg *msgs, int num)
 	int ret;
 
 	if (IS_ERR_OR_NULL(msgs) || (num <= 0)) {
-		dev_err(i2c->dev, "invalid argument\n");
+		I2C_SUNXI_DEV_ERR(i2c->dev, "invalid argument\n");
 		return -EINVAL;
 	}
 
@@ -2074,7 +2080,7 @@ sunxi_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg *msgs, int num)
 
 	ret = sunxi_i2c_bus_barrier(&i2c->adap);
 	if (ret) {
-		dev_err(i2c->dev, "i2c bus barrier failed, sda is still low!\n");
+		I2C_SUNXI_DEV_ERR(i2c->dev, "i2c bus barrier failed, sda is still low!\n");
 		goto out;
 	}
 
