@@ -10,7 +10,7 @@
 #include "sun50iw9-h618-pinctrl.dtsi"
 
 /{
-	model = "sun50iw9";
+	model = "EmbedFire LubanCat-A1";
 	compatible = "allwinner,h616", "arm,sun50iw9p1";
 
 	aliases {
