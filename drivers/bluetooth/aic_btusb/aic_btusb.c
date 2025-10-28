@@ -57,15 +57,18 @@ static volatile uint16_t    dlfw_dis_state = 0;
 
 /* USB Device ID */
 #define USB_VENDOR_ID_AIC                0xA69C
+#define USB_VENDOR_ID_AIC_V2             0x368B
 #define USB_PRODUCT_ID_AIC8801				0x8801
 #define USB_PRODUCT_ID_AIC8800DC			0x88dc
 #define USB_PRODUCT_ID_AIC8800D80			0x8d81
+#define USB_PRODUCT_ID_AIC8800D80X2			0x8d91
 
 enum AICWF_IC{
 	PRODUCT_ID_AIC8801	=	0,
 	PRODUCT_ID_AIC8800DC,
 	PRODUCT_ID_AIC8800DW,
-	PRODUCT_ID_AIC8800D80
+	PRODUCT_ID_AIC8800D80,
+	PRODUCT_ID_AIC8800D80X2
 };
 
 u16 g_chipid = PRODUCT_ID_AIC8801;
@@ -154,11 +157,11 @@ struct snd_sco_cap_timer {
 static struct snd_sco_cap_timer snd_cap_timer;
 #endif
 
-
-
 #ifdef CONFIG_SUPPORT_VENDOR_APCF
 int vendor_apcf_sent_done = 0;
 #endif
+
+const struct aicbt_firmware *aicbt_fw;
 
 static inline int check_set_dlfw_state_value(uint16_t change_value)
 {
@@ -1153,7 +1156,7 @@ static int hci_recv_fragment(struct hci_dev *hdev, int type, void *data, int cou
 void hci_hardware_error(void)
 {
     struct sk_buff *aic_skb_copy = NULL;
-    int len = 3;
+    int len = 4;
     uint8_t hardware_err_pkt[4] = {HCI_EVENT_PKT, 0x10, 0x01, HCI_VENDOR_USB_DISC_HARDWARE_ERROR};
 
     aic_skb_copy = alloc_skb(len, GFP_ATOMIC);
@@ -1168,6 +1171,23 @@ void hci_hardware_error(void)
     wake_up_interruptible(&btchr_read_wait);
 }
 
+void hci_resume_hardware_error(void)
+{
+    struct sk_buff *aic_skb_copy = NULL;
+    int len = 4;
+    uint8_t hardware_err_pkt[4] = {HCI_EVENT_PKT, 0x10, 0x01, HCI_VENDOR_USB_RESUME_HARDWARE_ERROR};
+
+    aic_skb_copy = alloc_skb(len, GFP_ATOMIC);
+    if (!aic_skb_copy) {
+        AICBT_ERR("%s: Failed to allocate mem", __func__);
+        return;
+    }
+
+    memcpy(skb_put(aic_skb_copy, len), hardware_err_pkt, len);
+    aic_enqueue(aic_skb_copy);
+
+    wake_up_interruptible(&btchr_read_wait);
+}
 static int btchr_open(struct inode *inode_p, struct file  *file_p)
 {
     struct btusb_data *data;
@@ -1524,7 +1544,9 @@ static int btchr_init(void)
 {
     int res = 0;
     struct device *dev;
-
+#ifdef CONFIG_PLATFORM_MTK_LINUX
+    bt_devid = MKDEV(111, 0);
+#endif
     AICBT_INFO("Register usb char device interface for BT driver");
     /*
      * btchr mutex is used to sync between
@@ -1537,13 +1559,20 @@ static int btchr_init(void)
     init_waitqueue_head(&btchr_read_wait);
     init_waitqueue_head(&bt_dlfw_wait);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
+    bt_char_class = class_create(BT_CHAR_DEVICE_NAME);
+#else
     bt_char_class = class_create(THIS_MODULE, BT_CHAR_DEVICE_NAME);
+#endif
     if (IS_ERR(bt_char_class)) {
         AICBT_ERR("Failed to create bt char class");
         return PTR_ERR(bt_char_class);
     }
-
+#ifndef CONFIG_PLATFORM_MTK_LINUX
     res = alloc_chrdev_region(&bt_devid, 0, 1, BT_CHAR_DEVICE_NAME);
+#else
+	res = register_chrdev_region(bt_devid, 1, BT_CHAR_DEVICE_NAME);
+#endif
     if (res < 0) {
         AICBT_ERR("Failed to allocate bt char device");
         goto err_alloc;
@@ -1602,9 +1631,9 @@ int send_hci_cmd(firmware_info *fw_info)
            fw_info->pkt_len, MSG_TO);
 
         if (ret_val>0) {
-            AICBT_INFO("Right in send hci cmd = %d,""size = %d", ret_val,  fw_info->pkt_len);
+            AICBT_DBG("Right in send hci cmd = %d,""size = %d", ret_val,  fw_info->pkt_len);
         }else{
-            AICBT_INFO("Error in send hci cmd = %d,""size = %d", ret_val,  fw_info->pkt_len);
+            AICBT_ERR("Error in send hci cmd = %d,""size = %d", ret_val,  fw_info->pkt_len);
         }
     }
     return ret_val;
@@ -1647,7 +1676,7 @@ int rcv_hci_evt_in_pm(firmware_info *fw_info)
         ret_val = usb_interrupt_msg(
             fw_info->udev, fw_info->pipe_in,
             (void *)(fw_info->rcv_pkt), RCV_PKT_LEN,
-            &ret_len, 10);
+            &ret_len, 200);
             if (ret_val >= 0)
                 break;
         }
@@ -1697,6 +1726,7 @@ int set_bt_wakeup_param(firmware_info *fw_info)
     wakeup_param->gpio_num[1] = 3;////default select gpiob2 for fw_wakeup_host
     wakeup_param->gpio_dft_lvl[1] = 1;////0:defalut pull down,  1:default pull up
     /********************************************************************/
+    /********************************************************************/
     //MAX_AD_FILTER_NUM=5 :num 0
     {
         const uint8_t data[11] = {0x59,0x4B,0x32,0x42,0x41,0x5F,0x54,0x45,0x53,0x54,0x33};
@@ -1706,7 +1736,17 @@ int set_bt_wakeup_param(firmware_info *fw_info)
         wakeup_param->ad_filter[0].ad_data_mask = 0xffe00000;
         wakeup_param->ad_filter[0].ad_role = ROLE_COMBO|(COMBO_0<<4);
         wakeup_param->ad_filter[0].gpio_trigger_idx = TG_IDX_0;//0: match for wakeup_param->gpio_num[0]       1: match for wakeup_param->gpio_num[1]
-    }
+		/********************************************************************/
+		/*enable white list addr for paired remote ble addr. if all 0: all addr will use ad filter
+												wl_addr have value xx: only remote addr in white_list_addr will use ad filter
+		********************************************************************/
+		wakeup_param->ad_filter[0].wl_addr.addr[0] = 0;
+		wakeup_param->ad_filter[0].wl_addr.addr[1] = 0;
+		wakeup_param->ad_filter[0].wl_addr.addr[2] = 0;
+		wakeup_param->ad_filter[0].wl_addr.addr[3] = 0;
+		wakeup_param->ad_filter[0].wl_addr.addr[4] = 0;
+		wakeup_param->ad_filter[0].wl_addr.addr[5] = 0;
+	}
     /********************************************************************/
     //MAX_AD_FILTER_NUM=5 :num 1
     {
@@ -1717,7 +1757,17 @@ int set_bt_wakeup_param(firmware_info *fw_info)
         wakeup_param->ad_filter[1].ad_data_mask = 0xc0000000;
         wakeup_param->ad_filter[1].ad_role = ROLE_COMBO|(COMBO_0<<4);
         wakeup_param->ad_filter[1].gpio_trigger_idx = TG_IDX_0;//0: match for wakeup_param->gpio_num[0]       1: match for wakeup_param->gpio_num[1]
-    }
+		/********************************************************************/
+		/*enable white list addr for paired remote ble addr. if all 0: all addr will use ad filter
+												wl_addr have value xx: only remote addr in white_list_addr will use ad filter
+		********************************************************************/
+		wakeup_param->ad_filter[1].wl_addr.addr[0] = 0;
+		wakeup_param->ad_filter[1].wl_addr.addr[1] = 0;
+		wakeup_param->ad_filter[1].wl_addr.addr[2] = 0;
+		wakeup_param->ad_filter[1].wl_addr.addr[3] = 0;
+		wakeup_param->ad_filter[1].wl_addr.addr[4] = 0;
+		wakeup_param->ad_filter[1].wl_addr.addr[5] = 0;
+	}
     /********************************************************************/
     //MAX_AD_FILTER_NUM=5 :num 2
     {
@@ -1728,7 +1778,17 @@ int set_bt_wakeup_param(firmware_info *fw_info)
         wakeup_param->ad_filter[2].ad_data_mask = 0;
         wakeup_param->ad_filter[2].ad_role = ROLE_ONLY;
         wakeup_param->ad_filter[2].gpio_trigger_idx = TG_IDX_0;//0: match for wakeup_param->gpio_num[0]       1: match for wakeup_param->gpio_num[1]
-    }
+		/********************************************************************/
+		/*enable white list addr for paired remote ble addr. if all 0: all addr will use ad filter
+												wl_addr have value xx: only remote addr in white_list_addr will use ad filter
+		********************************************************************/
+		wakeup_param->ad_filter[2].wl_addr.addr[0] = 0;
+		wakeup_param->ad_filter[2].wl_addr.addr[1] = 0;
+		wakeup_param->ad_filter[2].wl_addr.addr[2] = 0;
+		wakeup_param->ad_filter[2].wl_addr.addr[3] = 0;
+		wakeup_param->ad_filter[2].wl_addr.addr[4] = 0;
+		wakeup_param->ad_filter[2].wl_addr.addr[5] = 0;
+	}
     /********************************************************************/
     //MAX_AD_FILTER_NUM=5 :num 3
     {
@@ -1739,21 +1799,40 @@ int set_bt_wakeup_param(firmware_info *fw_info)
         wakeup_param->ad_filter[3].ad_data_mask = 0;
         wakeup_param->ad_filter[3].ad_role = ROLE_COMBO|(COMBO_1<<4);
         wakeup_param->ad_filter[3].gpio_trigger_idx = TG_IDX_0;//0: match for wakeup_param->gpio_num[0]       1: match for wakeup_param->gpio_num[1]
-    }
+		/********************************************************************/
+		/*enable white list addr for paired remote ble addr. if all 0: all addr will use ad filter
+												wl_addr have value xx: only remote addr in white_list_addr will use ad filter
+		********************************************************************/
+		wakeup_param->ad_filter[3].wl_addr.addr[0] = 0;
+		wakeup_param->ad_filter[3].wl_addr.addr[1] = 0;
+		wakeup_param->ad_filter[3].wl_addr.addr[2] = 0;
+		wakeup_param->ad_filter[3].wl_addr.addr[3] = 0;
+		wakeup_param->ad_filter[3].wl_addr.addr[4] = 0;
+		wakeup_param->ad_filter[3].wl_addr.addr[5] = 0;
+	}
+	#if 0
     /********************************************************************/
     //MAX_AD_FILTER_NUM=5 :num 4
     {
-        //const uint8_t data[11] = {0x59,0x4B,0x32,0x42,0x41,0x5F,0x54,0x45,0x53,0x54,0x33};
+        const uint8_t data[11] = {0x59,0x4B,0x32,0x42,0x41,0x5F,0x54,0x45,0x53,0x54,0x33};
         wakeup_param->ad_filter[4].ad_len = 0;
         wakeup_param->ad_filter[4].ad_type = 0x09;
         //memcpy(wakeup_param->ad_filter[4].ad_data, data,wakeup_param->ad_filter[4].ad_len-1);// 1111 1111 1110 0000 0000 0000 0000 0000 //0xffe00000
         wakeup_param->ad_filter[4].ad_data_mask = 0xffe00000;
         wakeup_param->ad_filter[4].ad_role = ROLE_COMBO|(COMBO_1<<4);
         wakeup_param->ad_filter[4].gpio_trigger_idx = TG_IDX_0|TG_IDX_1;//0: match for wakeup_param->gpio_num[0]       1: match for wakeup_param->gpio_num[1]
-    }
-
-
-
+		/********************************************************************/
+		/*enable white list addr for paired remote ble addr. if all 0: all addr will use ad filter
+												wl_addr have value xx: only remote addr in white_list_addr will use ad filter
+		********************************************************************/
+		wakeup_param->ad_filter[4].wl_addr.addr[0] = 0;
+		wakeup_param->ad_filter[4].wl_addr.addr[1] = 0;
+		wakeup_param->ad_filter[4].wl_addr.addr[2] = 0;
+		wakeup_param->ad_filter[4].wl_addr.addr[3] = 0;
+		wakeup_param->ad_filter[4].wl_addr.addr[4] = 0;
+		wakeup_param->ad_filter[4].wl_addr.addr[5] = 0;
+	}
+	#endif
     fw_info->cmd_hdr->opcode = cpu_to_le16(HCI_VSC_SET_ADFILTER_PT_CMD);
     fw_info->cmd_hdr->plen = sizeof(struct ble_wakeup_param_t);
     fw_info->pkt_len = CMD_HDR_LEN + sizeof(struct ble_wakeup_param_t);
@@ -1979,7 +2058,7 @@ int fw_config(firmware_info* fw_info)
             for (i = 0; i < len; i++) {
                 memcpy(&patch_table_cmd->patch_table_addr[i], &fwcfg_tbl[i][0], sizeof(uint32_t));
                 memcpy(&patch_table_cmd->patch_table_data[i], &fwcfg_tbl[i][1], sizeof(uint32_t));
-                printk("%s [%d] data: %08x %08x\n", __func__, i, patch_table_cmd->patch_table_addr[i],patch_table_cmd->patch_table_data[i]);
+                //printk("%s [%d] data: %08x %08x\n", __func__, i, patch_table_cmd->patch_table_addr[i],patch_table_cmd->patch_table_data[i]);
             }
             fw_info->cmd_hdr->opcode = cpu_to_le16(HCI_VSC_UPDATE_PT_CMD);
             fw_info->cmd_hdr->plen = HCI_VSC_UPDATE_PT_SIZE;
@@ -2140,7 +2219,8 @@ int check_fw_status(firmware_info* fw_info)
     return read_ver_rsp->status;
 }
 
-int download_data(firmware_info *fw_info, u32 fw_addr, char *filename)
+
+int download_data(firmware_info *fw_info, u32 fw_addr, const char *filename)
 {
     unsigned int i=0;
     int size;
@@ -2186,14 +2266,16 @@ int download_data(firmware_info *fw_info, u32 fw_addr, char *filename)
             printk("[%d] data_len %d, src %x, dst %x\n", i, data_len, dst + i, fw_addr + i);
             printk("%p , %d\n", dl_cmd, fw_info->pkt_len);
             print_hex_dump(KERN_ERR,"payload:",DUMP_PREFIX_NONE,16,1,dl_cmd->data,32,false);
+            
             /* Send download command */
-            print_hex_dump(KERN_ERR,"data:",DUMP_PREFIX_NONE,16,1,fw_info->send_pkt,32,false);
+            //print_hex_dump(KERN_ERR,"cmd data:",DUMP_PREFIX_NONE,16,1,fw_info->send_pkt,32,false);
             #endif
             ret_val = send_hci_cmd(fw_info);
 
             while (ncmd > 0) {
                 ret_val = rcv_hci_evt(fw_info);
-                printk("rcv_hci_evt %d\n", ret_val);
+                //print_hex_dump(KERN_ERR,"evt data:",DUMP_PREFIX_NONE,16,1,fw_info->rcv_pkt,ret_val,false);
+                //printk("rcv_hci_evt %d\n", ret_val);
                 if (ret_val < 0) {
                     AICBT_ERR("%s: rcv_hci_evt err %d", __func__, ret_val);
                     goto out;
@@ -2206,9 +2288,7 @@ int download_data(firmware_info *fw_info, u32 fw_addr, char *filename)
                             __func__, ret_val, evt_para->status);
                     ret_val = -1;
                     goto out;
-                } else {
-                    ret_val = 0;
-                }
+                } 
             }
             ncmd = 1;
         }
@@ -2227,8 +2307,11 @@ int download_data(firmware_info *fw_info, u32 fw_addr, char *filename)
         ret_val = send_hci_cmd(fw_info);
         //printk("(%d) data_len %d, src %x, dst %x\n", i, data_len, (dst + i), fw_addr + i);
         //printk("%p , %d\n", dl_cmd, fw_info->pkt_len);
+        /* Send download command */
+        //print_hex_dump(KERN_ERR,"cmd data:",DUMP_PREFIX_NONE,16,1,fw_info->send_pkt,32,false);
         while (ncmd > 0) {
             ret_val = rcv_hci_evt(fw_info);
+            //print_hex_dump(KERN_ERR,"evt data:",DUMP_PREFIX_NONE,16,1,fw_info->rcv_pkt,ret_val,false);
             if (ret_val < 0) {
                 AICBT_ERR("%s: rcv_hci_evt err %d", __func__, ret_val);
                 goto out;
@@ -2241,9 +2324,7 @@ int download_data(firmware_info *fw_info, u32 fw_addr, char *filename)
                         __func__, ret_val, evt_para->status);
                 ret_val = -1;
                 goto out;
-            } else {
-                ret_val = 0;
-            }
+            } 
         }
         ncmd = 0;
     }
@@ -2252,6 +2333,10 @@ out:
     if (dst) {
         vfree(dst);
         dst = NULL;
+    }
+    
+    if(ret_val != -1){
+       ret_val = 0; 
     }
 
     printk("fw download complete\n\n");
@@ -2332,7 +2417,7 @@ struct aicbsp_info_t aicbsp_info = {
 
 char aic_fw_path[FW_PATH_MAX];
 #if (CONFIG_BLUEDROID == 0)
-static const char* aic_default_fw_path = "/lib/firmware/aic_usb/aic8800DC";
+static const char* aic_default_fw_path = "/usr/lib/firmware/aic8800/usb/aic8800DC";
 #else
 static const char* aic_default_fw_path = "/vendor/etc/firmware";
 #endif
@@ -2372,9 +2457,16 @@ int patch_table_load(firmware_info *fw_info, struct aicbt_patch_table *_head)
             *(data + 13) = aicbt_info.uart_flowctrl;
             *(data + 15) = aicbt_info.lpm_enable;
             *(data + 17) = aicbt_info.txpwr_lvl;
+            
+            printk("%s bt btmode:%d \r\n", __func__, aicbt_info.btmode);
+    		printk("%s bt uart_baud:%d \r\n", __func__, aicbt_info.uart_baud);
+    		printk("%s bt uart_flowctrl:%d \r\n", __func__, aicbt_info.uart_flowctrl);
+    		printk("%s bt lpm_enable:%d \r\n", __func__, aicbt_info.lpm_enable);
+    		printk("%s bt tx_pwr:%d \r\n", __func__, aicbt_info.txpwr_lvl);
+
 
         }
-        if (p->type == AICBT_PT_NULL || p->type == AICBT_PT_PWRON) {
+        if (p->type == AICBT_PT_INF || p->type == AICBT_PT_PWRON) {
             continue;
         }
         if (p->type == AICBT_PT_VER) {
@@ -2397,14 +2489,14 @@ int patch_table_load(firmware_info *fw_info, struct aicbt_patch_table *_head)
                 patch_table_cmd->patch_num = len;
                 memcpy(&patch_table_cmd->patch_table_addr[i], data, sizeof(uint32_t));
                 memcpy(&patch_table_cmd->patch_table_data[i], data + 1, sizeof(uint32_t));
-                printk("[%d] data: %08x %08x\n", i, patch_table_cmd->patch_table_addr[i],patch_table_cmd->patch_table_data[i]);
+                //printk("[%d] data: %08x %08x\n", i, patch_table_cmd->patch_table_addr[i],patch_table_cmd->patch_table_data[i]);
                 data += 2;
             }
             tot_len -= len;
             evt_para = (struct fw_status *)fw_info->rsp_para;
             //print_hex_dump(KERN_ERR,"data0:",DUMP_PREFIX_NONE,16,1,patch_table_cmd,sizeof(struct aicbt_patch_table_cmd),false);
 
-            //printk("patch num %x %d\n", patch_table_cmd->patch_num, sizeof(struct aicbt_patch_table_cmd));
+            //printk("patch num %x %d\n", patch_table_cmd->patch_num, (int)sizeof(struct aicbt_patch_table_cmd));
             fw_info->cmd_hdr->opcode = cpu_to_le16(HCI_VSC_UPDATE_PT_CMD);
             fw_info->cmd_hdr->plen = HCI_VSC_UPDATE_PT_SIZE;
             fw_info->pkt_len = fw_info->cmd_hdr->plen + 3;
@@ -2413,6 +2505,7 @@ int patch_table_load(firmware_info *fw_info, struct aicbt_patch_table *_head)
             ret_val = send_hci_cmd(fw_info);
             while (ncmd > 0) {
                 ret_val = rcv_hci_evt(fw_info);
+                //printk("%s ret_val:%d \r\n", __func__, ret_val);
                 if (ret_val < 0) {
                     AICBT_ERR("%s: rcv_hci_evt err %d", __func__, ret_val);
                     goto out;
@@ -2425,15 +2518,19 @@ int patch_table_load(firmware_info *fw_info, struct aicbt_patch_table *_head)
                             __func__, ret_val, evt_para->status);
                     ret_val = -1;
                     goto out;
+                }else{
+                    ret_val = 0;
                 }
             }
             ncmd = 1;
         }
     }
 out:
-    aicbt_patch_table_free(&head);
+    //aicbt_patch_table_free(&head);
+
     return ret_val;
 }
+
 
 int aic_load_firmware(u8 ** fw_buf, const char *name, struct device *device)
 {
@@ -2591,160 +2688,248 @@ int aicbt_patch_table_free(struct aicbt_patch_table **head)
     return 0;
 }
 
-int get_patch_addr_from_patch_table(firmware_info *fw_info, char *filename, uint32_t *fw_patch_base_addr)
+struct aicbt_patch_table *aicbt_patch_table_alloc(const char *filename)
 {
-    int size;
+	uint8_t *rawdata = NULL, *p;
+	int size;
+	struct aicbt_patch_table *head = NULL, *new = NULL, *cur = NULL;
+
+	/* load aic firmware */
+	size = aic_load_firmware((u8 **)&rawdata, filename, NULL);
+	if (size <= 0) {
+		printk("wrong size of firmware file\n");
+		goto err;
+	}
+
+	p = rawdata;
+	if (memcmp(p, AICBT_PT_TAG, sizeof(AICBT_PT_TAG) < 16 ? sizeof(AICBT_PT_TAG) : 16)) {
+		printk("TAG err\n");
+		goto err;
+	}
+	p += 16;
+
+	while (p - rawdata < size) {
+		printk("size = %d  p - rawdata = 0x%0lx \r\n", size, p - rawdata);
+		new = (struct aicbt_patch_table *)vmalloc(sizeof(struct aicbt_patch_table));
+		memset(new, 0, sizeof(struct aicbt_patch_table));
+		if (head == NULL) {
+			head = new;
+			cur  = new;
+		} else {
+			cur->next = new;
+			cur = cur->next;
+		}
+
+		cur->name = (char *)vmalloc(sizeof(char) * 16);
+		memset(cur->name, 0, sizeof(char) * 16);
+		memcpy(cur->name, p, 16);
+		p += 16;
+
+		cur->type = *(uint32_t *)p;
+		p += 4;
+
+		cur->len = *(uint32_t *)p;
+		p += 4;
+		
+		printk("cur->type %x, len %d\n", cur->type, cur->len);
+
+		if((cur->type )  >= 1000 ) {//Temp Workaround
+			cur->len = 0;
+		}else{
+			if(cur->len > 0){
+				cur->data = (uint32_t *)vmalloc(sizeof(uint8_t) * cur->len * 8);
+				memset(cur->data, 0, sizeof(uint8_t) * cur->len * 8);
+				memcpy(cur->data, p, cur->len * 8);
+				p += cur->len * 8;
+			}
+		}
+	}
+    
+	if (rawdata)
+		vfree(rawdata);
+    
+	return head;
+
+err:
+	aicbt_patch_table_free(&head);
+	if (rawdata)
+		vfree(rawdata);
+	return NULL;
+}
+
+
+int aicbt_patch_info_unpack(struct aicbt_patch_info_t *patch_info, struct aicbt_patch_table *head_t)
+{
+    uint8_t *patch_info_array = (uint8_t*)patch_info;
+    int base_len = 0;
+    int memcpy_len = 0;
+    
+    if (AICBT_PT_INF == head_t->type) {
+        base_len = ((offsetof(struct aicbt_patch_info_t,  ext_patch_nb_addr) - offsetof(struct aicbt_patch_info_t,  adid_addrinf) )/sizeof(uint32_t))/2;
+        printk("%s head_t->len:%d base_len:%d \r\n", __func__, head_t->len, base_len);
+
+        if (head_t->len > base_len){
+            patch_info->info_len = base_len;
+            memcpy_len = patch_info->info_len + 1;//include ext patch nb     
+        } else{
+            patch_info->info_len = head_t->len;
+            memcpy_len = patch_info->info_len;
+        }
+        printk("%s memcpy_len:%d \r\n", __func__, memcpy_len);   
+
+        if (patch_info->info_len == 0)
+            return 0;
+       
+        memcpy(((patch_info_array) + sizeof(patch_info->info_len)), 
+            head_t->data, 
+            memcpy_len * sizeof(uint32_t) * 2);
+        printk("%s adid_addrinf:%x addr_adid:%x \r\n", __func__, 
+            ((struct aicbt_patch_info_t *)patch_info_array)->adid_addrinf,
+            ((struct aicbt_patch_info_t *)patch_info_array)->addr_adid);
+
+        if (patch_info->ext_patch_nb > 0){
+            int index = 0;
+            patch_info->ext_patch_param = (uint32_t *)(head_t->data + ((memcpy_len) * 2));
+            
+            for(index = 0; index < patch_info->ext_patch_nb; index++){
+                printk("%s id:%x addr:%x \r\n", __func__, 
+                    *(patch_info->ext_patch_param + (index * 2)),
+                    *(patch_info->ext_patch_param + (index * 2) + 1));
+            }
+        }
+
+    }
+    return 0;
+}
+
+int rwnx_send_dbg_mem_write_req(firmware_info *fw_info, u32 mem_addr, u32 mem_data){
+    int ret_val = -1;
+    struct hci_dbg_wr_mem_cmd *dl_cmd;
+    int data_len = 4;
+    int frag_len = 0;
+    int hdr_len = sizeof(__le32) + sizeof(__u8) + sizeof(__u8);
+
+    frag_len = data_len + hdr_len;
+    dl_cmd = (struct hci_dbg_wr_mem_cmd *)(fw_info->req_para);
+    if (!dl_cmd)
+        return -ENOMEM;
+    
+    dl_cmd->start_addr = mem_addr;
+    dl_cmd->type = 32;
+    dl_cmd->length = data_len;
+    memcpy(dl_cmd->data, (__u8*)(&mem_data), data_len);
+    frag_len = data_len + hdr_len;
+    fw_info->cmd_hdr->opcode = cpu_to_le16(DOWNLOAD_OPCODE);
+    fw_info->cmd_hdr->plen = frag_len;
+    fw_info->pkt_len = frag_len + sizeof(struct hci_command_hdr);;
+
+    //print_hex_dump(KERN_ERR,"data:",DUMP_PREFIX_NONE,16,1,fw_info->send_pkt,fw_info->pkt_len,false);
+
+    ret_val = send_hci_cmd(fw_info);
+    if (ret_val < 0) {
+        printk("%s: Failed to send hci cmd 0x%04x, errno %d",
+                __func__, fw_info->cmd_hdr->opcode, ret_val);
+        return ret_val;
+    }
+
+    ret_val = rcv_hci_evt(fw_info);
+    //print_hex_dump(KERN_ERR,"evt data:",DUMP_PREFIX_NONE,16,1,fw_info->rcv_pkt,ret_val,false);
+    if (ret_val < 0) {
+        printk("%s: Failed to receive hci event, errno %d",
+                __func__, ret_val);
+        return ret_val;
+    }else{
+        ret_val = 0;
+    }
+    
+    return ret_val;
+}
+
+int aicbt_ext_patch_data_load(firmware_info *fw_info, struct aicbt_patch_info_t *patch_info)
+{
     int ret = 0;
-    uint8_t *rawdata=NULL;
-    uint8_t *p = NULL;
-    uint32_t *data = NULL;
-    uint32_t type = 0, len = 0;
-    int j;
+    uint32_t ext_patch_nb = patch_info->ext_patch_nb;
+    char ext_patch_file_name[50];
+    int index = 0;
+    uint32_t id = 0;
+    uint32_t addr = 0;
 
-    /* load aic firmware */
-    size = aic_load_firmware((u8 **)&rawdata, filename, NULL);
+    
+    if (ext_patch_nb > 0){
+        
+	printk("%s [0x40506004]: 0x04318000\r\n", __func__);
+	ret = rwnx_send_dbg_mem_write_req(fw_info, 0x40506004, 0x04318000);
+	printk("%s [0x40506004]: 0x04338000\r\n", __func__);
+	ret = rwnx_send_dbg_mem_write_req(fw_info, 0x40506004, 0x04338000);   
 
-    /* Copy the file on the Embedded side */
-    printk("### Upload %s fw_patch_table, size=%d\n", filename, size);
-
-    if (size <= 0) {
-        printk("wrong size of firmware file\n");
-        ret = -1;
-        goto err;
-    }
-
-    p = rawdata;
-
-    if (memcmp(p, AICBT_PT_TAG, sizeof(AICBT_PT_TAG) < 16 ? sizeof(AICBT_PT_TAG) : 16)) {
-        printk("TAG err\n");
-        ret = -1;
-        goto err;
-    }
-    p += 16;
-
-    while (p - rawdata < size) {
-        printk("size = %d  p - rawdata = 0x%0lx \r\n", size, p - rawdata);
-        p += 16;
-
-        type = *(uint32_t *)p;
-        p += 4;
-
-        len = *(uint32_t *)p;
-        p += 4;
-        printk("cur->type %x, len %d\n", type, len);
-
-        if(type >= 1000 ) {//Temp Workaround
-            len = 0;
-        }else{
-            data = (uint32_t *)p;
-            if (type == AICBT_PT_NULL) {
-                *(fw_patch_base_addr) = *(data + 3);
-                printk("addr found %x\n", *(fw_patch_base_addr));
-                for (j = 0; j < len; j++) {
-                    printk("addr %x\n", *(data+j));
-                }
+        if(ret < 0){
+            printk("%s set dc enable fail\r\n", __func__);
+            return ret;
+        }
+        
+        for (index = 0; index < patch_info->ext_patch_nb; index++){
+            id = *(patch_info->ext_patch_param + (index * 2));
+            addr = *(patch_info->ext_patch_param + (index * 2) + 1); 
+            memset(ext_patch_file_name, 0, sizeof(ext_patch_file_name));
+            sprintf(ext_patch_file_name,"%s%d.bin",
+                aicbt_fw->bt_ext_patch,
+                id);
+            printk("%s ext_patch_file_name:%s ext_patch_id:%x ext_patch_addr:%x \r\n",
+                __func__,ext_patch_file_name, id, addr);
+            
+            if (download_data(fw_info, addr, ext_patch_file_name)) {
+                ret = -1;
                 break;
             }
-            p += len * 8;
         }
-    }
-
-    vfree(rawdata);
-    return ret;
-err:
-    //aicbt_patch_table_free(&head);
-
-    if (rawdata){
-        vfree(rawdata);
+    }else{
+        printk("%s nothing ext patch need to load \r\n", __func__);
     }
     return ret;
 }
 
 
-
-int patch_table_download(firmware_info *fw_info, char *filename)
+int aicbt_patch_trap_data_load(firmware_info *fw_info, struct aicbt_patch_table *head)
 {
-    struct aicbt_patch_table *head = NULL;
-    struct aicbt_patch_table *new = NULL;
-    struct aicbt_patch_table *cur = NULL;
-        int size;
-    int ret = 0;
-       uint8_t *rawdata=NULL;
-    uint8_t *p = NULL;
-
-    /* load aic firmware */
-    size = aic_load_firmware((u8 **)&rawdata, filename, NULL);
-
-    /* Copy the file on the Embedded side */
-    printk("### Upload %s fw_patch_table, size=%d\n", filename, size);
-
-    if (size <= 0) {
-        printk("wrong size of firmware file\n");
-        ret = -1;
-        goto err;
+    int ret_val;
+    
+	struct aicbt_patch_info_t patch_info = {
+		.info_len          = 0,
+		.adid_addrinf      = 0,
+		.addr_adid         = 0,
+		.patch_addrinf     = 0,
+		.addr_patch        = 0,
+		.reset_addr        = 0,
+        .reset_val         = 0,
+        .adid_flag_addr    = 0,
+        .adid_flag         = 0,
+        .ext_patch_nb_addr = 0,
+        .ext_patch_nb      = 0,
+	};
+    if(head == NULL){
+        return -1;
     }
 
-    p = rawdata;
+    patch_info.addr_patch = FW_RAM_PATCH_BASE_ADDR;//set default patch base addr
+    aicbt_patch_info_unpack(&patch_info, head);
 
-    if (memcmp(p, AICBT_PT_TAG, sizeof(AICBT_PT_TAG) < 16 ? sizeof(AICBT_PT_TAG) : 16)) {
-        printk("TAG err\n");
-        ret = -1;
-        goto err;
+    if(download_data(fw_info, patch_info.addr_patch, aicbt_fw->bt_patch)){
+        printk("aic load patch fail %d\n", ret_val);
+        return -1;
     }
-    p += 16;
-
-    while (p - rawdata < size) {
-        printk("size = %d  p - rawdata = 0x%0lx \r\n", size, p - rawdata);
-        new = (struct aicbt_patch_table *)kmalloc(sizeof(struct aicbt_patch_table), GFP_KERNEL);
-        memset(new, 0, sizeof(struct aicbt_patch_table));
-        if (head == NULL) {
-            head = new;
-            cur  = new;
-        } else {
-            cur->next = new;
-            cur = cur->next;
-        }
-
-        cur->name = (char *)kmalloc(sizeof(char) * 16, GFP_KERNEL);
-        memset(cur->name, 0, sizeof(char) * 16);
-        memcpy(cur->name, p, 16);
-        p += 16;
-
-        cur->type = *(uint32_t *)p;
-        p += 4;
-
-        cur->len = *(uint32_t *)p;
-        p += 4;
-        printk("cur->type %x, len %d\n", cur->type, cur->len);
-
-        if((cur->type )  >= 1000 ) {//Temp Workaround
-            cur->len = 0;
-        }else{
-            cur->data = (uint32_t *)kmalloc(sizeof(uint8_t) * cur->len * 8, GFP_KERNEL);
-            memset(cur->data, 0, sizeof(uint8_t) * cur->len * 8);
-            memcpy(cur->data, p, cur->len * 8);
-            p += cur->len * 8;
-        }
+    
+	if (aicbt_ext_patch_data_load(fw_info, &patch_info)){
+        printk("aic load ext patch fail %d\n", ret_val);
+		return -1;
     }
 
-    vfree(rawdata);
-    patch_table_load(fw_info, head);
-    printk("fw_patch_table download complete\n\n");
-
-    return ret;
-err:
-    //aicbt_patch_table_free(&head);
-
-    if (rawdata){
-        vfree(rawdata);
-    }
-    return ret;
+	return 0;
 }
-
 
 int download_patch(firmware_info *fw_info, int cached)
 {
     int ret_val = 0;
+    struct aicbt_patch_table *head;
 
     printk("%s: Download fw patch start, cached %d", __func__, cached);
 
@@ -2777,74 +2962,40 @@ int download_patch(firmware_info *fw_info, int cached)
 
 
     if (ret_val) {
-        #if 0
-        ret_val = download_data(fw_info, FW_RAM_ADID_BASE_ADDR, FW_ADID_BASE_NAME);
-        if (ret_val) {
-            printk("aic load adid fail %d\n", ret_val);
+        switch (sub_chip_id){
+            case DC_U01:
+            case DC_U02:
+            case DC_U02H:
+                aicbt_fw = &fw_8800dc[sub_chip_id];
+                printk("%s aicbt_fw desc:%s \r\n", __func__, aicbt_fw->desc);
+                break;
+            default:
+                printk("%s unsupported sub_chip_id %x\n", __func__, sub_chip_id);
+                goto free;
+                break;
+        }
+
+        //step 1 get patch table data
+        head = aicbt_patch_table_alloc(aicbt_fw->bt_table);
+        if (head == NULL){
+            printk("aicbt_patch_table_alloc fail\n");
             goto free;
         }
-        #endif
-        if (sub_chip_id == 0) {
-            ret_val= download_data(fw_info, FW_RAM_PATCH_BASE_ADDR, FW_PATCH_BASE_NAME);
-            if (ret_val) {
-                printk("aic load patch fail %d\n", ret_val);
-                goto free;
-            }
-
-            ret_val= patch_table_download(fw_info, FW_PATCH_TABLE_NAME);
-            if (ret_val) {
-                printk("aic load patch ftable ail %d\n", ret_val);
-                goto free;
-            }
-        } else if (sub_chip_id == 1) {
-            uint32_t fw_ram_patch_base_addr = FW_RAM_PATCH_BASE_ADDR;
-
-            ret_val = get_patch_addr_from_patch_table(fw_info, FW_PATCH_TABLE_NAME_U02, &fw_ram_patch_base_addr);
-            if (ret_val)
-            {
-                printk("aic get patch addr fail %d\n", ret_val);
-                goto free;
-            }
-            printk("%s %x\n", __func__, fw_ram_patch_base_addr);
-            ret_val = download_data(fw_info, fw_ram_patch_base_addr, FW_PATCH_BASE_NAME_U02);
-            if (ret_val)
-            {
-                printk("aic load patch fail %d\n", ret_val);
-                goto free;
-            }
-
-            ret_val = patch_table_download(fw_info, FW_PATCH_TABLE_NAME_U02);
-            if (ret_val)
-            {
-                printk("aic load patch ftable ail %d\n", ret_val);
-                goto free;
-            }
-        } else if (sub_chip_id == 2) {
-            uint32_t fw_ram_patch_base_addr = FW_RAM_PATCH_BASE_ADDR;
-
-            ret_val = get_patch_addr_from_patch_table(fw_info, FW_PATCH_TABLE_NAME_U02H, &fw_ram_patch_base_addr);
-            if (ret_val)
-            {
-                printk("aic get patch addr fail %d\n", ret_val);
-                goto free;
-            }
-            printk("U02H %s %x\n", __func__, fw_ram_patch_base_addr);
-            ret_val = download_data(fw_info, fw_ram_patch_base_addr, FW_PATCH_BASE_NAME_U02H);
-            if (ret_val)
-            {
-                printk("aic load patch fail %d\n", ret_val);
-                goto free;
-            }
-
-            ret_val = patch_table_download(fw_info, FW_PATCH_TABLE_NAME_U02H);
-            if (ret_val)
-            {
-                printk("aic load patch ftable ail %d\n", ret_val);
-                goto free;
-            }
-	} else {
-            printk("%s unsupported sub_chip_id %x\n", __func__, sub_chip_id);
+        //step 2 unpack table data and download patch , ext patch
+        ret_val = aicbt_patch_trap_data_load(fw_info, head);
+        if (ret_val) {
+    		printk("aicbt_patch_trap_data_load fail\n");
+    		goto free;
         }
+        
+        //step 3 download patch table
+        ret_val = patch_table_load(fw_info, head);
+        if (ret_val){
+            printk("aic load patch table fail\n");
+            goto free;
+        }
+        printk("%s download complete\r\n", __func__);
+
     }
 
 free:
@@ -2951,6 +3102,7 @@ static struct usb_device_id btusb_table[] = {
     {USB_DEVICE_AND_INTERFACE_INFO(USB_VENDOR_ID_AIC, USB_PRODUCT_ID_AIC8801, 0xe0, 0x01,0x01)},
     {USB_DEVICE_AND_INTERFACE_INFO(USB_VENDOR_ID_AIC, USB_PRODUCT_ID_AIC8800D80, 0xe0, 0x01,0x01)},
     {USB_DEVICE_AND_INTERFACE_INFO(USB_VENDOR_ID_AIC, USB_PRODUCT_ID_AIC8800DC, 0xe0, 0x01,0x01)},
+    {USB_DEVICE_AND_INTERFACE_INFO(USB_VENDOR_ID_AIC_V2, USB_PRODUCT_ID_AIC8800D80X2, 0xe0, 0x01,0x01)},
     {}
 };
 
@@ -4267,6 +4419,7 @@ static void btusb_work(struct work_struct *work)
         }
 #endif
     } else {
+        AICBT_INFO("%s: data->sco_num :%d", __func__, data->sco_num);
         clear_bit(BTUSB_ISOC_RUNNING, &data->flags);
 #ifdef CONFIG_SCO_OVER_HCI
         clear_bit(USB_CAPTURE_RUNNING, &data->pSCOSnd->states);
@@ -4841,9 +4994,13 @@ static int aicwf_usb_chipmatch(u16 vid, u16 pid){
 		printk("%s USE AIC8800DC\r\n", __func__);
 		return 0;
 	}else if(pid == USB_PRODUCT_ID_AIC8800D80){
-                g_chipid = PRODUCT_ID_AIC8800D80;
-                printk("%s USE AIC8800D80\r\n", __func__);
-                return 0;
+		g_chipid = PRODUCT_ID_AIC8800D80;
+		printk("%s USE AIC8800D80\r\n", __func__);
+		return 0;
+	}else if(pid == USB_PRODUCT_ID_AIC8800D80X2){
+		g_chipid = PRODUCT_ID_AIC8800D80X2;
+		printk("%s USE AIC8800D80X2\r\n", __func__);
+		return 0;
 	}else{
 		return -1;
 	}
@@ -5236,6 +5393,7 @@ static int btusb_resume(struct usb_interface *intf)
     }
     #ifdef CONFIG_BT_WAKEUP_IN_PM
     reset_bt_from_wakeup_process(data->fw_info);
+	hci_resume_hardware_error();
     #endif
 
     #if 1

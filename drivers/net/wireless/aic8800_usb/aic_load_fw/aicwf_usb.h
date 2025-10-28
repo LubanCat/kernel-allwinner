@@ -28,6 +28,8 @@
 #define CHIP_REV_U01        0x1
 #define CHIP_REV_U02        0x3
 #define CHIP_REV_U03        0x7
+#define CHIP_REV_U04        0xf
+#define CHIP_REV_U05        0x1f
 #define CHIP_SUB_REV_U04    0x20
 
 enum AICWF_IC{
@@ -38,6 +40,8 @@ enum AICWF_IC{
     PRODUCT_ID_AIC8800D80,
     PRODUCT_ID_AIC8800D81,
     PRODUCT_ID_AIC8800D80X2,
+    PRODUCT_ID_AIC8800D81X2,
+    PRODUCT_ID_AIC8800D89X2,
 };
 
 
@@ -120,6 +124,7 @@ enum aicwf_usb_state {
 #define MAX_GPIO_TRIGGER_NUM     2// Max user config num of gpio
 #define MAX_ROLE_COMNO_IDX_NUM   2// Max num of ad role type combo,form( enum gpio_combo_idx) 
 
+
 #define AD_ROLE_FLAG         0x0f
 #define ROLE_COMBO_IDX_FLAG  0xf0
 
@@ -138,6 +143,11 @@ enum gpio_trigger_bit {
     TG_IDX_1 = (1<<1),
 };
 
+/* BD Address */
+typedef struct {
+	uint8_t addr[6];
+}bdaddr_t;
+
 struct wakeup_ad_data_filter {
     uint32_t ad_data_mask;
     uint8_t gpio_trigger_idx;
@@ -145,6 +155,7 @@ struct wakeup_ad_data_filter {
     uint8_t ad_len;
     uint8_t ad_type;
     uint8_t ad_data[31];
+	bdaddr_t wl_addr;
 };
 
 struct ble_wakeup_param_t {

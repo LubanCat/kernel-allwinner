@@ -4,8 +4,8 @@ EXTRA_CFLAGS += -Wno-implicit-fallthrough
 
 RWNX_VERS_NUM := 6.4.3.0
 
-CONFIG_AIC8800_WLAN_SUPPORT = m
-MODULE_NAME = aic8800_fdrv
+CONFIG_AIC8800_USB_WLAN_SUPPORT = m
+MODULE_NAME = aic8800_usb_fdrv
 CONFIG_COUNTRY_CODE = "00"
 
 # Support of bootrom start
@@ -30,6 +30,8 @@ CONFIG_RWNX_FHOST ?= n
 #
 # DEBUG OPTIONS
 CONFIG_RWNX_UM_HELPER_DFLT ?= "/dini/dini_bin/rwnx_umh.sh"
+CONFIG_AIC_FW_PATH = "/vendor/etc/firmware"
+export CONFIG_AIC_FW_PATH
 
 #
 # FW ARCH:
@@ -80,6 +82,7 @@ CONFIG_BR_SUPPORT = n
 CONFIG_USB_MSG_OUT_EP = y
 CONFIG_USB_MSG_IN_EP = y
 CONFIG_USB_RX_REASSEMBLE = n
+CONFIG_WOWLAN = n
 
 #DCDW support tx aggr, D80 support both
 CONFIG_USB_RX_AGGR = n
@@ -116,6 +119,8 @@ CONFIG_EXT_FEM_8800DCDW = n
 # CONFIG_MCC = n for sta and p2p concurrent in same channel.
 CONFIG_MCC = y
 CONFIG_LOAD_BT_PATCH_IN_FDRV = n
+CONFIG_DYNAMIC_PWR = n
+CONFIG_DYNAMIC_PERPWR = n
 
 ifneq ($(CONFIG_WIRELESS_EXT), y)
 CONFIG_USE_WIRELESS_EXT = n
@@ -152,7 +157,7 @@ CONFIG_RWNX_SW_PROFILING ?= n
 CONFIG_RWNX_DBG ?= y
 BR_NAME = br0
 
-obj-$(CONFIG_AIC8800_WLAN_SUPPORT) := $(MODULE_NAME).o
+obj-$(CONFIG_AIC8800_USB_WLAN_SUPPORT) := $(MODULE_NAME).o
 $(MODULE_NAME)-y := \
     rwnx_wakelock.o        \
 	rwnx_msg_tx.o          \
@@ -249,6 +254,8 @@ ccflags-$(CONFIG_RWNX_MUMIMO_TX) += -DCONFIG_RWNX_MUMIMO_TX
 ccflags-$(CONFIG_RFTEST) += -DCONFIG_RFTEST
 ccflags-$(CONFIG_MCC) += -DCONFIG_MCC
 ccflags-$(CONFIG_LOAD_BT_PATCH_IN_FDRV) += -DCONFIG_LOAD_BT_PATCH_IN_FDRV
+ccflags-$(CONFIG_DYNAMIC_PWR) += -DCONFIG_DYNAMIC_PWR
+ccflags-$(CONFIG_DYNAMIC_PERPWR) += -DCONFIG_DYNAMIC_PERPWR
 
 ifeq ($(CONFIG_SDIO_SUPPORT), y)
 ccflags-y += -DAICWF_SDIO_SUPPORT
@@ -282,7 +289,7 @@ endif
 ccflags-$(CONFIG_RX_REORDER) += -DAICWF_RX_REORDER
 ccflags-$(CONFIG_ARP_OFFLOAD) += -DAICWF_ARP_OFFLOAD
 ccflags-$(CONFIG_USE_5G) += -DUSE_5G
-ccflags-$(CONFIG_RADAR_OR_IR_DETECT) += -DRADAR_OR_IR_DETECT
+ccflags-$(CONFIG_RADAR_OR_IR_DETECT) += -DCONFIG_RADAR_OR_IR_DETECT
 ccflags-$(CONFIG_DOWNLOAD_FW)  += -DCONFIG_DOWNLOAD_FW
 ccflags-$(CONFIG_USB_BT)  += -DCONFIG_USB_BT
 ccflags-$(CONFIG_ALIGN_8BYTES)  += -DCONFIG_ALIGN_8BYTES
@@ -325,6 +332,7 @@ ccflags-$(CONFIG_FILTER_TCP_ACK) += -DCONFIG_FILTER_TCP_ACK
 ccflags-$(CONFIG_TEMP_COMP) += -DCONFIG_TEMP_COMP
 ccflags-$(CONFIG_POWER_LIMIT) += -DCONFIG_POWER_LIMIT
 ccflags-$(CONFIG_EXT_FEM_8800DCDW) += -DCONFIG_EXT_FEM_8800DCDW
+ccflags-$(CONFIG_WOWLAN) += -DCONFIG_WOWLAN
 MAKEFLAGS +=-j$(shell nproc)
 
 # Platform support list
@@ -365,6 +373,7 @@ KDIR ?= /home/yaya/D/Workspace/CyberQuantum/JinHaoYue/amls905x3/SDK/20191101-0tt
 endif
 
 ifeq ($(CONFIG_PLATFORM_UBUNTU), y)
+ccflags-$(CONFIG_PLATFORM_UBUNTU) += -DCONFIG_PLATFORM_UBUNTU
 KDIR  ?= /lib/modules/$(shell uname -r)/build
 #KDIR ?= ~/D/Workspace/CyberQuantum/Linux/linux-4.15/
 PWD   ?= $(shell pwd)

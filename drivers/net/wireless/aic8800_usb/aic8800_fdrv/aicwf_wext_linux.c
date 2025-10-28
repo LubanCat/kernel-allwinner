@@ -970,6 +970,26 @@ static int aicwf_set_scan(struct net_device *dev, struct iw_request_info *a,
 		}
 	}
 
+#if WIRELESS_EXT >= 17
+		if (wrqu->data.length == sizeof(struct iw_scan_req)) {
+			struct iw_scan_req *req = (struct iw_scan_req *)extra;
+
+			if (wrqu->data.flags & IW_SCAN_THIS_ESSID) {
+				int len = min((int)req->essid_len, 32);
+				request->ssids = kmalloc(sizeof(struct cfg80211_ssid), GFP_KERNEL);
+				if(!request->ssids){
+					AICWFDBG(LOGERROR, "%s Failied to alloc memory for ssids", __func__);
+					return -ENOMEM;
+				}
+				memset(request->ssids, 0, sizeof(struct cfg80211_ssid));
+				memcpy(request->ssids[0].ssid, req->essid, len);
+				request->ssids[0].ssid_len = len;
+				request->n_ssids = 1;
+				AICWFDBG(LOGDEBUG,"IW_SCAN_THIS_ESSID, ssid=%s, len=%d\n", req->essid, req->essid_len);
+			} else if (req->scan_type == IW_SCAN_TYPE_PASSIVE)
+				AICWFDBG(LOGDEBUG,"aic_set_scan, req->scan_type == IW_SCAN_TYPE_PASSIVE\n");
+		}
+#endif
 	if ((ret = rwnx_send_scanu_req(rwnx_hw, rwnx_vif, request))){
         return ret;
 	}
@@ -980,7 +1000,6 @@ static int aicwf_set_scan(struct net_device *dev, struct iw_request_info *a,
 	if (!wait_for_completion_killable_timeout(&rwnx_hw->wext_scan_com, wext_scan_timeout)) {
 		AICWFDBG(LOGERROR, "%s WEXT scan timeout", __func__);
 	}
-
 	return 0;
 }
 

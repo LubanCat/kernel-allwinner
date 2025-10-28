@@ -10,7 +10,7 @@ struct prealloc_txq{
 struct prealloc_txq prealloc_txq;
 #define MAX_TXQ_SIZE 100 * 1024
 
-void *aicwf_prealloc_txq_alloc(size_t size)
+void *aicwf_usb_prealloc_txq_alloc(size_t size)
 {
 
     BUG_ON(size > MAX_TXQ_SIZE);
@@ -57,5 +57,5 @@ void aicwf_prealloc_txq_free(void)
     }
 }
 
-EXPORT_SYMBOL(aicwf_prealloc_txq_alloc);
+EXPORT_SYMBOL(aicwf_usb_prealloc_txq_alloc);
 

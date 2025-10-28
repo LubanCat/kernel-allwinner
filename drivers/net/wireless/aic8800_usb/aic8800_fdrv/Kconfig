@@ -1,27 +1,27 @@
-config AIC8800_WLAN_SUPPORT
-	tristate "AIC8800 wlan Support"
+config AIC8800_USB_WLAN_SUPPORT
+	tristate "AIC8800 usb wlan Support"
 	help
 	  This is support for aic wifi driver.
 
 #choice
-#        depends on AIC8800_WLAN_SUPPORT
+#        depends on AIC8800_USB_WLAN_SUPPORT
 #        prompt "Select 8800 support platform"
 #
 #        config PLATFORM_ROCHCHIP
 #                bool "PLATFORM_ROCHCHIP"
-#                depends on AIC8800_WLAN_SUPPORT
+#                depends on AIC8800_USB_WLAN_SUPPORT
 #
 #	config PLATFORM_ALLWINNER
 #                bool "PLATFORM_ALLWINNER"
-#                depends on AIC8800_WLAN_SUPPORT
+#                depends on AIC8800_USB_WLAN_SUPPORT
 #
 #        config PLATFORM_AMLOGIC
 #                bool "PLATFORM_AMLOGIC"
-#                depends on AIC8800_WLAN_SUPPORT
+#                depends on AIC8800_USB_WLAN_SUPPORT
 #
 #        config PLATFORM_UBUNTU
 #                bool "PLATFORM_UBUNTU"
-#                depends on AIC8800_WLAN_SUPPORT
+#                depends on AIC8800_USB_WLAN_SUPPORT
 #
 #endchoice
 #

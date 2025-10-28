@@ -314,17 +314,28 @@ out_put_fail:
 	return -EMSGSIZE;
 }
 
+struct ieee80211_regdomain *getRegdomainFromRwnxDB(struct wiphy *wiphy, char *alpha2);
+
 static int aicwf_vendor_subcmd_set_country_code(struct wiphy *wiphy, struct wireless_dev *wdev,
 	const void *data, int len)
 {
 	int ret = 0, rem, type;
 	const struct nlattr *iter;
+    struct ieee80211_regdomain *regdomain;
 
 	nla_for_each_attr(iter, data, len, rem) {
 		type = nla_type(iter);
 		switch (type) {
 		case ANDR_WIFI_ATTRIBUTE_COUNTRY:
 			printk("%s(%d), ANDR_WIFI_ATTRIBUTE_COUNTRY: %s\n", __func__, __LINE__, (char *)nla_data(iter));
+            regdomain = getRegdomainFromRwnxDB(wiphy, (char *)nla_data(iter));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
+        if((ret = regulatory_set_wiphy_regd(wiphy, regdomain))){
+            AICWFDBG(LOGERROR, "regulatory_set_wiphy_regd fail \r\n");
+        }
+#else
+            wiphy_apply_custom_regulatory(wiphy, regdomain);
+#endif
 			break;
 		default:
 			pr_err("%s(%d), Unknown type: %d\n", __func__, __LINE__, type);

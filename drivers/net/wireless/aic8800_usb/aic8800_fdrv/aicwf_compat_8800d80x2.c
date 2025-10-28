@@ -9,6 +9,7 @@ extern char aic_fw_path[200];
 
 int rwnx_request_firmware_common(struct rwnx_hw *rwnx_hw,
 	u32** buffer, const char *filename);
+void rwnx_plat_userconfig_parsing_8800d80x2(char *buffer, int size);
 void rwnx_plat_userconfig_parsing(char *buffer, int size);
 void rwnx_release_firmware_common(u32** buffer);
 
@@ -17,13 +18,13 @@ int aicwf_set_rf_config_8800d80x2(struct rwnx_hw *rwnx_hw, struct mm_set_rf_cali
 {
 	int ret = 0;
 
-	if ((ret = rwnx_send_txpwr_lvl_v3_req(rwnx_hw))) {
+	if ((ret = rwnx_send_txpwr_lvl_v4_req(rwnx_hw))) {
 		return -1;
 	}
 	if ((ret = rwnx_send_txpwr_lvl_adj_req(rwnx_hw))) {
 		return -1;
 	}
-	if ((ret = rwnx_send_txpwr_ofst2x_req(rwnx_hw))) {
+	if ((ret = rwnx_send_txpwr_ofst2x_v2_req(rwnx_hw))) {
 		return -1;
 	}
 	if ((ret = rwnx_send_rf_calib_req(rwnx_hw, cfm))) {
@@ -55,7 +56,7 @@ int	rwnx_plat_userconfig_load_8800d80x2(struct rwnx_hw *rwnx_hw){
     /* Copy the file on the Embedded side */
     AICWFDBG(LOGINFO, "### Load file done: %s, size=%d\n", filename, size);
 
-    rwnx_plat_userconfig_parsing((char *)dst, size);
+    rwnx_plat_userconfig_parsing_8800d80x2((char *)dst, size);
 
     rwnx_release_firmware_common(&dst);
 

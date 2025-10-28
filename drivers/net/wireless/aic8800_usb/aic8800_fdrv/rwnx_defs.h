@@ -478,6 +478,14 @@ struct aic_sta {
     u8 sta_idx;            /* Identifier of the station */
 	bool he;               /* Flag indicating if the station supports HE */
     bool vht;               /* Flag indicating if the station supports VHT */
+
+	struct ieee80211_he_cap_elem he_cap_elem;
+	struct ieee80211_he_mcs_nss_supp he_mcs_nss_supp;
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 8, 0) || defined(CONFIG_VHT_FOR_OLD_KERNEL)
+	__le32 vht_cap_info;
+	struct ieee80211_vht_mcs_info supp_mcs;
+#endif
 };
 #endif
 
@@ -525,6 +533,12 @@ struct rwnx_sta {
     struct rwnx_tdls tdls; /* TDLS station information */
     struct rwnx_sta_stats stats;
     enum nl80211_mesh_power_mode mesh_pm; /*  link-specific mesh power save mode */
+#ifdef CONFIG_DYNAMIC_PERPWR
+	s8_l rssi_save;
+	s8_l per_pwrloss;
+	struct work_struct per_pwr_work;
+	unsigned long last_jiffies;
+#endif
 };
 
 static inline const u8 *rwnx_sta_addr(struct rwnx_sta *rwnx_sta) {
@@ -608,13 +622,41 @@ struct rwnx_phy_info {
     bool limit_bw;
 };
 
+struct defrag_ctrl_info {
+    struct list_head list;
+    u8 sta_idx;
+    u8 tid;
+    u16 sn;
+    u8 next_fn;
+    u16 frm_len;
+    struct sk_buff *skb;
+    struct timer_list defrag_timer;
+    struct rwnx_hw *rwnx_hw;
+};
+
+struct amsdu_subframe_hdr {
+    u8 da[6];
+    u8 sa[6];
+    u16 sublen;
+};
+
 /* rwnx driver status */
+void rwnx_set_conn_state(atomic_t *drv_conn_state, int state);
 
 enum rwnx_drv_connect_status { 
 	RWNX_DRV_STATUS_DISCONNECTED = 0,
 	RWNX_DRV_STATUS_DISCONNECTING, 
 	RWNX_DRV_STATUS_CONNECTING, 
 	RWNX_DRV_STATUS_CONNECTED, 
+	RWNX_DRV_STATUS_ROAMING,
+};
+
+static const char *const s_conn_state[] = {
+    "RWNX_DRV_STATUS_DISCONNECTED",
+    "RWNX_DRV_STATUS_DISCONNECTING",
+    "RWNX_DRV_STATUS_CONNECTING",
+    "RWNX_DRV_STATUS_CONNECTED",
+    "RWNX_DRV_STATUS_ROAMING",
 };
 
 
@@ -723,6 +765,9 @@ struct rwnx_hw {
     bool scanning;
     bool p2p_working;
 
+    struct list_head defrag_list;
+    spinlock_t defrag_lock;
+
     struct work_struct apmStalossWork;
     struct workqueue_struct *apmStaloss_wq;
     u8 apm_vif_idx;
@@ -757,6 +802,13 @@ struct rwnx_hw {
 	char wext_essid[33];
 	int support_freqs[SCAN_CHANNEL_MAX];
 	int support_freqs_number;
+#ifdef CONFIG_DYNAMIC_PWR
+	struct timer_list pwrloss_timer;
+	struct work_struct pwrloss_work;
+	struct rwnx_vif *read_rssi_vif;
+	s8 pwrloss_lvl;
+	u8 sta_rssi_idx;
+#endif
 #endif
 };
 
