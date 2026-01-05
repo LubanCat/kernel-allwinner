@@ -29,15 +29,6 @@
 		twi5 = &twi5;
 	};
 
-	usb0_drvvbus: usb0-drvvvbus {
-		compatible = "regulator-fixed";
-		regulator-name = "usb0-drvvbus";
-		regulator-min-microvolt = <5000000>;
-		regulator-max-microvolt = <5000000>;
-		regulator-enable-ramp-delay = <1000>;
-		enable-active-high;
-	};
-
 	box_start_os0 {
 		compatible = "allwinner,box_start_os";
 		start_type = <0x1>;
@@ -98,12 +89,10 @@
 };
 
 &ehci0 {
-	drvvbus-supply		= <&usb0_drvvbus>;
 	status			= "okay";
 };
 
 &ohci0 {
-	drvvbus-supply		= <&usb0_drvvbus>;
 	status			= "okay";
 };
 
@@ -115,12 +104,10 @@
 };
 
 &ehci1 {
-	drvvbus-supply		= <&usb0_drvvbus>;
 	status			= "okay";
 };
 
 &ohci1 {
-	drvvbus-supply		= <&usb0_drvvbus>;
 	status			= "okay";
 };
 
@@ -132,12 +119,10 @@
 };
 
 &ehci2 {
-	drvvbus-supply		= <&usb0_drvvbus>;
 	status			= "okay";
 };
 
 &ohci2 {
-	drvvbus-supply		= <&usb0_drvvbus>;
 	status			= "okay";
 };
 
@@ -149,12 +134,10 @@
 };
 
 &ehci3 {
-	drvvbus-supply		= <&usb0_drvvbus>;
 	status			= "disabled";
 };
 
 &ohci3 {
-	drvvbus-supply		= <&usb0_drvvbus>;
 	status			= "disabled";
 };
 
