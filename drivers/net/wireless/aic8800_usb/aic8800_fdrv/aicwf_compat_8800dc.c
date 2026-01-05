@@ -2608,7 +2608,7 @@ int aicwf_patch_table_load(struct rwnx_hw *rwnx_hw, char *filename)
 
     if (!err && (i < size)) {
         for (i =(128/4); i < (size/4); i +=2) {
-            AICWFDBG(LOGERROR, "patch_tbl:  %x  %x\n", dst[i], dst[i+1]);
+            AICWFDBG(LOGTRACE, "patch_tbl:  %x  %x\n", dst[i], dst[i+1]);
             err = rwnx_send_dbg_mem_write_req(rwnx_hw, dst[i], dst[i+1]);
         }
         if (err) {
