@@ -668,6 +668,13 @@
 	// rx-delay = <11>;
 };
 
+// Ethernet 100M
+&gmac1 {
+	phy-mode = "rmii";
+	// This should be okay., fix kernel error
+	status = "okay";
+};
+
 // 26PIN 3,5 TWI4/UART2
 &twi4 {
 	clock-frequency = <400000>;
